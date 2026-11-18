@@ -236,8 +236,10 @@ export function updateMissions(state, dt) {
     return;
   }
   if (!m.active) {
-    // The start marker waits: walk or drive into it to begin the next job.
+    // The start marker waits: walk or drive into it to begin the next job. Never mid-race:
+    // a briefing would pause the world and steal the race.
     if (m.index >= MISSION_COUNT) return;
+    if (state.race && state.race.active) return;
     const start = missionStartPoint(state);
     if (start && near(state.player.x, state.player.y, start.x, start.y, 90)) beginMission(state);
     return;

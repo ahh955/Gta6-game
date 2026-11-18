@@ -6,7 +6,7 @@
 // instead of running the loop, paints it twice and sets window.__shotReady for a screenshot.
 import { STEP } from './config.js';
 import { createGame, respawnAfterTrouble, stepGame } from './game.js';
-import { ACTION_ADVANCE, ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_PAUSE, ACTION_PUNCH, createInput, createScriptedInput } from './input.js';
+import { ACTION_ADVANCE, ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_PAUSE, ACTION_PUNCH, ACTION_RACE, createInput, createScriptedInput } from './input.js';
 import { createRenderer, SCREEN_BUSTED, SCREEN_COMPLETE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WASTED } from './render.js';
 import { createAudio } from './audio.js';
 import { applySave, loadGame, readBest, saveGame } from './save.js';
@@ -52,6 +52,9 @@ function runShot(name) {
 
 function runGame() {
   const state = createGame(seed);
+  // ?debug=1 exposes the state for automated checks (traffic, races, saves); the shipped
+  // game never reads it.
+  if (params.get('debug') === '1') window.__solmarState = state;
   const saved = loadGame();
   if (saved) {
     applySave(state, saved);
@@ -98,6 +101,23 @@ function runGame() {
       } else if (event.type === 'checkpoint') {
         audio.pickup();
         setBanner(event.text, '', 1.5);
+      } else if (event.type === 'raceStart') {
+        audio.raceStart();
+        setBanner(`RACE: ${event.name}`, event.hint, 3.5);
+      } else if (event.type === 'raceNeedCar') {
+        setBanner('YOU NEED A CAR TO RACE', 'Steal one first, then come back to the gate', 2.5);
+      } else if (event.type === 'raceComplete') {
+        audio.missionComplete();
+        setBanner('RACE COMPLETE', event.text, 4);
+        saveGame(state);
+      } else if (event.type === 'doubloon') {
+        audio.doubloon();
+        setBanner(event.text, '', 2);
+        saveGame(state);
+      } else if (event.type === 'allDoubloons') {
+        audio.missionComplete();
+        setBanner('ALL 12 DOUBLOONS FOUND', 'Mama Luz pays $1,000 for the set', 4);
+        saveGame(state);
       } else if (event.type === 'gameComplete') {
         screen = SCREEN_COMPLETE;
         saveGame(state);
@@ -170,10 +190,14 @@ function runGame() {
           if (dialogueTimer > DIALOGUE_SECONDS) advanceDialogue();
         } else {
           accumulator += dt;
-          const stepActions = { enter: Boolean(actions & ACTION_ENTER), punch: Boolean(actions & ACTION_PUNCH) };
+          const stepActions = {
+            enter: Boolean(actions & ACTION_ENTER),
+            punch: Boolean(actions & ACTION_PUNCH),
+            race: Boolean(actions & ACTION_RACE),
+          };
           let stepped = false;
           while (accumulator >= STEP) {
-            stepOnce(stepped ? { enter: false, punch: false } : stepActions);
+            stepOnce(stepped ? { enter: false, punch: false, race: false } : stepActions);
             stepped = true;
             accumulator -= STEP;
             if (state.dialogue) break;

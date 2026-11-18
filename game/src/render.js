@@ -4,6 +4,8 @@
 import { CITY, FONT, PALETTE, VIEW } from './config.js';
 import { drawDialogue, drawHud } from './hud.js';
 import { INTRO_LINES, MISSION_NAMES } from './story.js';
+import { DOUBLOON_COUNT, DOUBLOON_SPOTS } from './collectibles.js';
+import { RACES, raceWaypoint } from './races.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -107,6 +109,20 @@ function drawBuildings(ctx, city) {
       ctx.fillStyle = 'rgba(255,255,255,0.25)';
       ctx.fillRect(b.x + 10, b.y + 10, b.width - 20, 8);
       ctx.fillRect(b.x + 10, b.y + 26, b.width - 20, 8);
+    }
+    // Rooftop details, placed by a hash of the building's position so they never move:
+    // air-conditioning boxes, and a few lit windows on the taller blocks.
+    const hash = (Math.floor(b.x) * 7 + Math.floor(b.y) * 13) % 5;
+    if (hash < 2 && b.width > 70 && b.height > 70) {
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(b.x + 12, b.y + 12, 14, 10);
+      ctx.fillRect(b.x + b.width - 30, b.y + b.height - 26, 16, 12);
+    }
+    if (b.tower && hash >= 3) {
+      ctx.fillStyle = 'rgba(255, 220, 130, 0.85)';
+      for (let i = 0; i < 3; i += 1) {
+        ctx.fillRect(b.x + 14 + i * ((b.width - 28) / 3), b.y + b.height - 16, 8, 6);
+      }
     }
     if (b.helipad) {
       ctx.strokeStyle = '#f2c94c';
@@ -275,6 +291,121 @@ function drawWaypoint(ctx, state) {
   ctx.restore();
 }
 
+/** The active race's next checkpoint: a pulsing cyan ring, same language as the waypoint. */
+function drawRaceCheckpoint(ctx, state) {
+  const wp = raceWaypoint(state);
+  if (!wp) return;
+  const pulse = 1 + Math.sin(state.time * 6) * 0.12;
+  ctx.save();
+  ctx.translate(wp.x, wp.y);
+  ctx.scale(pulse, pulse);
+  ctx.fillStyle = 'rgba(63, 210, 255, 0.22)';
+  ctx.beginPath();
+  ctx.arc(0, 0, 46, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#3fd2ff';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(0, 0, 46, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#3fd2ff';
+  ctx.beginPath();
+  ctx.moveTo(0, -52);
+  ctx.lineTo(12, -30);
+  ctx.lineTo(-12, -30);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A race start gate: a glowing ring on the road and a checkered flag on a pole. */
+function drawRaceGates(ctx, state) {
+  if (state.race.active) return;
+  for (const race of RACES) {
+    const { x, y } = race.start;
+    const pulse = 0.8 + Math.sin(state.time * 3) * 0.2;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = 'rgba(63, 210, 255, 0.2)';
+    ctx.beginPath();
+    ctx.arc(x, y, 52, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3fd2ff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, 52, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // Checkered flag.
+    ctx.fillStyle = '#222222';
+    ctx.fillRect(x - 2, y - 64, 4, 26);
+    for (let r = 0; r < 3; r += 1) {
+      for (let c = 0; c < 4; c += 1) {
+        ctx.fillStyle = (r + c) % 2 === 0 ? '#ffffff' : '#222222';
+        ctx.fillRect(x + 2 + c * 6, y - 64 + r * 6, 6, 6);
+      }
+    }
+    ctx.font = `bold 13px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#3fd2ff';
+    ctx.fillText(race.name.toUpperCase(), x, y + 74);
+    ctx.restore();
+  }
+}
+
+/** The doubloons still to find: a bobbing gold coin with a shine. */
+function drawDoubloons(ctx, state) {
+  if (!state.doubloons) return;
+  for (let i = 0; i < DOUBLOON_COUNT; i += 1) {
+    if (state.doubloons.found[i]) continue;
+    const spot = DOUBLOON_SPOTS[i];
+    const bob = Math.sin(state.time * 3 + i * 1.7) * 4;
+    const y = spot.y + bob;
+    ctx.save();
+    ctx.fillStyle = 'rgba(242, 201, 76, 0.25)';
+    ctx.beginPath();
+    ctx.arc(spot.x, y, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f2c94c';
+    ctx.beginPath();
+    ctx.arc(spot.x, y, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#a87c10';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(spot.x, y, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#a87c10';
+    ctx.font = `bold 13px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$', spot.x, y);
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
+  }
+}
+
+/** Slow waves rolling across the water strip at the south edge. */
+function drawWaterWaves(ctx, state) {
+  const cam = state.camera;
+  const x0 = Math.max(0, cam.x - VIEW.width / 2 - 50);
+  const x1 = Math.min(CITY.width, cam.x + VIEW.width / 2 + 50);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.lineWidth = 3;
+  for (let row = 0; row < 3; row += 1) {
+    const y = CITY.waterTop + 40 + row * 55;
+    ctx.beginPath();
+    for (let x = x0; x <= x1; x += 40) {
+      const yy = y + Math.sin(x * 0.02 + state.time * 1.4 + row * 2) * 5;
+      if (x === x0) ctx.moveTo(x, yy);
+      else ctx.lineTo(x, yy);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawMissionMarker(ctx, state) {
   if (state.mission.active || state.mission.index >= 5) return;
   const start = state.missionStart;
@@ -366,6 +497,7 @@ export function createRenderer(canvas) {
     }
     drawGround(context, state.city);
     drawRoads(context, state.city, view);
+    drawWaterWaves(context, state);
     drawBuildings(context, state.city);
     drawTrees(context, state.city);
     // Skid marks under everything that moves.
@@ -378,6 +510,9 @@ export function createRenderer(canvas) {
       context.stroke();
     }
     drawWaypoint(context, state);
+    drawRaceCheckpoint(context, state);
+    drawRaceGates(context, state);
+    drawDoubloons(context, state);
     drawMissionMarker(context, state);
     // Pickups.
     for (const p of state.pickups) {
@@ -420,6 +555,26 @@ export function createRenderer(canvas) {
     }
     drawParticles(context, state);
     drawLighting(context, cam);
+    // Speed lines at the screen edges when the player is really flying.
+    const pcar = state.player.car;
+    if (pcar && Math.abs(pcar.speed) > 520) {
+      const strength = Math.min(1, (Math.abs(pcar.speed) - 520) / 260);
+      context.save();
+      context.strokeStyle = `rgba(255,255,255,${0.25 * strength})`;
+      context.lineWidth = 3;
+      const cx = cam.x;
+      const cy = cam.y;
+      for (let i = 0; i < 10; i += 1) {
+        const a = (i / 10) * Math.PI * 2 + state.time * 0.7;
+        const r0 = 480 + ((i * 137) % 90);
+        const r1 = r0 + 60 + ((i * 61) % 50);
+        context.beginPath();
+        context.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+        context.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+        context.stroke();
+      }
+      context.restore();
+    }
     context.restore();
   }
 
@@ -440,7 +595,7 @@ export function createRenderer(canvas) {
     context.font = `19px ${FONT}`;
     context.fillStyle = 'rgba(255,255,255,0.92)';
     context.fillText('Steal cars. Outrun the law. Run five jobs for Mama Luz.', VIEW.width / 2, 320);
-    context.fillText('A city on foot and by car — traffic, police, missions, and one gold sunset.', VIEW.width / 2, 348);
+    context.fillText('Street races, hidden doubloons, traffic, police — and one gold sunset.', VIEW.width / 2, 348);
     const pulse = 0.75 + Math.sin(state.time * 3) * 0.25;
     context.globalAlpha = pulse;
     context.font = `bold 24px ${FONT}`;

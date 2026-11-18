@@ -11,6 +11,9 @@ export function saveGame(state) {
       x: state.player.x,
       y: state.player.y,
       health: state.player.health,
+      doubloons: state.doubloons ? state.doubloons.found.slice() : undefined,
+      raceBest: state.race ? state.race.bestTimes.slice() : undefined,
+      raceDone: state.race ? state.race.completed.slice() : undefined,
       savedAt: Date.now(),
     };
     window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -47,4 +50,23 @@ export function applySave(state, save) {
   state.player.x = save.x;
   state.player.y = save.y;
   state.player.health = save.health || 100;
+  // Side progress is optional in the save: an older save just starts it fresh.
+  if (state.doubloons && Array.isArray(save.doubloons)) {
+    for (let i = 0; i < state.doubloons.found.length && i < save.doubloons.length; i += 1) {
+      if (save.doubloons[i]) {
+        state.doubloons.found[i] = true;
+        state.doubloons.count += 1;
+      }
+    }
+  }
+  if (state.race && Array.isArray(save.raceBest)) {
+    for (let i = 0; i < state.race.bestTimes.length && i < save.raceBest.length; i += 1) {
+      if (typeof save.raceBest[i] === 'number') state.race.bestTimes[i] = save.raceBest[i];
+    }
+  }
+  if (state.race && Array.isArray(save.raceDone)) {
+    for (let i = 0; i < state.race.completed.length && i < save.raceDone.length; i += 1) {
+      if (save.raceDone[i]) state.race.completed[i] = true;
+    }
+  }
 }

@@ -90,6 +90,10 @@ function stepDriving(state, dt, input) {
   if (handbrake && Math.abs(car.speed) > 220) {
     state.skidmarks.push({ x: car.x, y: car.y, angle: car.angle, life: 3 });
     if (state.skidmarks.length > 120) state.skidmarks.shift();
+    // Tire smoke from the rear wheels while sliding.
+    const bx = car.x - Math.cos(car.angle) * (car.spec.length / 2);
+    const by = car.y - Math.sin(car.angle) * (car.spec.length / 2);
+    state.particles.push({ x: bx, y: by, vx: -Math.cos(car.angle) * 20, vy: -Math.sin(car.angle) * 20, life: 0.6, maxLife: 0.6, color: 'rgba(200,200,200,0.55)', size: 7, kind: 'puff' });
   }
   if (Math.abs(car.speed) > 60 && state.rng.chance(0.3)) {
     const bx = car.x - Math.cos(car.angle) * (car.spec.length / 2);

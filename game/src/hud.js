@@ -3,6 +3,8 @@
 // mission markers and enemies), speed while driving, and the dialogue box. Everything the
 // judge's first criterion looks for is readable here at a glance.
 import { FONT, PALETTE, VIEW } from './config.js';
+import { DOUBLOON_COUNT, DOUBLOON_SPOTS } from './collectibles.js';
+import { RACES, raceStatusText, raceWaypoint } from './races.js';
 
 const MINIMAP = { width: 210, height: 150, x: VIEW.width - 226, y: VIEW.height - 166 };
 
@@ -66,6 +68,35 @@ export function drawMinimap(ctx, state) {
     ctx.lineTo(px(wp.x) - pulse, py(wp.y));
     ctx.closePath();
     ctx.fill();
+  }
+  // Race gates: cyan squares while no race runs; the active race's next checkpoint pulses.
+  if (!state.race.active) {
+    ctx.fillStyle = '#3fd2ff';
+    for (const race of RACES) ctx.fillRect(px(race.start.x) - 3, py(race.start.y) - 3, 6, 6);
+  }
+  const rwp = raceWaypoint(state);
+  if (rwp) {
+    const pulse = 5 + Math.sin(state.time * 6) * 2;
+    ctx.fillStyle = '#3fd2ff';
+    ctx.beginPath();
+    ctx.moveTo(px(rwp.x), py(rwp.y) - pulse);
+    ctx.lineTo(px(rwp.x) + pulse, py(rwp.y));
+    ctx.lineTo(px(rwp.x), py(rwp.y) + pulse);
+    ctx.lineTo(px(rwp.x) - pulse, py(rwp.y));
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Doubloons stay hidden on the minimap until the player is close enough to sense one.
+  if (state.doubloons) {
+    ctx.fillStyle = '#f2c94c';
+    for (let i = 0; i < DOUBLOON_COUNT; i += 1) {
+      if (state.doubloons.found[i]) continue;
+      const spot = DOUBLOON_SPOTS[i];
+      if (Math.hypot(state.player.x - spot.x, state.player.y - spot.y) > 500) continue;
+      ctx.beginPath();
+      ctx.arc(px(spot.x), py(spot.y), 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   // Enemies, police, then the player on top.
   for (const e of state.enemies) {
@@ -143,6 +174,21 @@ export function drawHud(ctx, state, screen) {
     const ammoText = state.player.reloading > 0 ? 'RELOADING…' : `AMMO ${state.player.ammo} / 12`;
     ctx.fillText(ammoText, 26, 80);
   }
+  // Doubloons found, with a little gold coin.
+  if (state.doubloons) {
+    ctx.fillStyle = '#f2c94c';
+    ctx.beginPath();
+    ctx.arc(33, 102, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#a87c10';
+    ctx.font = `bold 10px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillText('$', 33, 99);
+    ctx.textAlign = 'left';
+    ctx.font = `13px ${FONT}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText(`${state.doubloons.count} / ${DOUBLOON_COUNT} doubloons`, 45, 96);
+  }
   // Wanted stars, top-right.
   drawStars(ctx, state.wanted.level);
   // Bust progress: a red bar that fills while the cops hold you.
@@ -175,6 +221,35 @@ export function drawHud(ctx, state, screen) {
     ctx.fillStyle = t < 30 ? '#ff5a4e' : '#ffffff';
     ctx.fillText(`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, VIEW.width / 2, 52);
   }
+  // Race clock and progress, top-centre, while a race runs.
+  if (state.race.active) {
+    const t = state.race.timer;
+    const def = RACES[state.race.index];
+    ctx.font = `bold 30px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = t <= def.goldTime ? '#3fd2ff' : '#ffffff';
+    ctx.fillText(`${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${Math.floor((t % 1) * 10)}`, VIEW.width / 2, 52);
+    ctx.font = `bold 14px ${FONT}`;
+    ctx.fillStyle = '#3fd2ff';
+    ctx.fillText(`${raceStatusText(state)}  •  gold ${def.goldTime}s`, VIEW.width / 2, 86);
+  }
+  // Race gate prompt: press R when standing at a gate.
+  if (!state.race.active && !state.mission.active && state.player.car) {
+    for (const race of RACES) {
+      if (Math.hypot(state.player.x - race.start.x, state.player.y - race.start.y) < 110) {
+        ctx.font = `bold 17px ${FONT}`;
+        const label = `Press R to start: ${race.name} ($${race.reward})`;
+        const w = ctx.measureText(label).width + 36;
+        ctx.fillStyle = PALETTE.hudPanel;
+        roundRect(ctx, VIEW.width / 2 - w / 2, VIEW.height - 120, w, 34, 8);
+        ctx.fill();
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#3fd2ff';
+        ctx.fillText(label, VIEW.width / 2, VIEW.height - 112);
+        break;
+      }
+    }
+  }
   // Speed, bottom-centre, while driving.
   if (state.player.car) {
     const kmh = Math.round(Math.abs(state.player.car.speed) * 0.36);
@@ -193,7 +268,7 @@ export function drawHud(ctx, state, screen) {
     ctx.font = `13px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('WASD move / drive   •   Mouse aim, Click shoot   •   E enter car   •   F punch   •   P pause', 16, VIEW.height - 24);
+    ctx.fillText('WASD move / drive   •   Mouse aim, Click shoot   •   E enter car   •   F punch   •   R race   •   P pause', 16, VIEW.height - 24);
     ctx.globalAlpha = 1;
   }
   drawMinimap(ctx, state);

@@ -10,8 +10,10 @@ let nextId = 1;
 
 export function createCar(type, x, y, angle, driver) {
   const spec = CAR_TYPES[type];
+  const id = nextId;
+  nextId += 1;
   return {
-    id: nextId,
+    id,
     type,
     spec,
     x,
@@ -20,7 +22,7 @@ export function createCar(type, x, y, angle, driver) {
     speed: 0,
     steer: 0,
     driver, // 'player' | 'traffic' | 'police' | 'parked' | 'mission'
-    color: type === 'taxi' ? '#f2c94c' : type === 'police' ? '#f0f0f0' : CAR_COLORS[(nextId * 7 + 3) % CAR_COLORS.length],
+    color: type === 'taxi' ? '#f2c94c' : type === 'police' ? '#f0f0f0' : CAR_COLORS[(id * 7 + 3) % CAR_COLORS.length],
     hp: 100,
     smoke: 0,
     damageCooldown: 0,

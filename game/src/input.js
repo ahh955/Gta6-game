@@ -8,6 +8,7 @@ export const ACTION_ENTER = 4;
 export const ACTION_PUNCH = 8;
 export const ACTION_MUTE = 16;
 export const ACTION_ADVANCE = 32;
+export const ACTION_RACE = 64;
 
 const UP = new Set(['ArrowUp', 'KeyW']);
 const DOWN = new Set(['ArrowDown', 'KeyS']);
@@ -18,6 +19,7 @@ const PAUSE = new Set(['KeyP', 'Escape']);
 const ENTER = new Set(['KeyE']);
 const PUNCH = new Set(['KeyF']);
 const MUTE = new Set(['KeyM']);
+const RACE = new Set(['KeyR']);
 
 export function createInput(target) {
   const held = { up: false, down: false, left: false, right: false, sprint: false, brake: false };
@@ -41,6 +43,8 @@ export function createInput(target) {
       if (!event.repeat) actions |= ACTION_PUNCH;
     } else if (MUTE.has(event.code)) {
       if (!event.repeat) actions |= ACTION_MUTE;
+    } else if (RACE.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_RACE;
     } else return;
     event.preventDefault();
   }

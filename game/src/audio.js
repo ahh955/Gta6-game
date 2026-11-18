@@ -153,6 +153,14 @@ export function createAudio() {
       const notes = [523, 659, 784, 1047];
       notes.forEach((n, i) => setTimeout(() => blip(n, 0.22, 'triangle', 0.22), i * 130));
     },
+    raceStart() {
+      // A starter's countdown: three low blips, then a high go.
+      [330, 330, 330, 880].forEach((n, i) => setTimeout(() => blip(n, i === 3 ? 0.3 : 0.12, 'square', 0.18), i * 170));
+    },
+    doubloon() {
+      blip(1318, 0.09, 'sine', 0.2);
+      setTimeout(() => blip(1760, 0.18, 'sine', 0.2), 80);
+    },
     punch() {
       noiseBurst(0.07, 0.25);
     },

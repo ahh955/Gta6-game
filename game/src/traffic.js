@@ -27,14 +27,56 @@ function makeRoute(city, rng, fromX, fromY) {
   // First along the avenue, then along the street (or the reverse, at random).
   const xFirst = rng.chance(0.5);
   const legs = xFirst ? [{ x: target.x, y: cy }, { x: target.x, y: target.y }] : [{ x: cx, y: target.y }, { x: target.x, y: target.y }];
-  for (const leg of legs) {
+  for (let i = 0; i < legs.length; i += 1) {
+    const leg = legs[i];
     const dx = Math.sign(leg.x - cx);
     const dy = Math.sign(leg.y - cy);
-    if (dx !== 0 || dy !== 0) points.push(lanePoint(leg.x, leg.y, dx, dy));
+    if (dx === 0 && dy === 0) {
+      cx = leg.x;
+      cy = leg.y;
+      continue;
+    }
+    points.push(lanePoint(leg.x, leg.y, dx, dy));
+    // A corner needs two points: the lane point of the leg arriving at the corner and a
+    // point 60 px along the leg leaving it, in that leg's lane. A single point makes the
+    // car aim across the corner and cut it over the sidewalk; the pair steers the turn
+    // through the intersection itself.
+    if (i + 1 < legs.length) {
+      const next = legs[i + 1];
+      const ndx = Math.sign(next.x - leg.x);
+      const ndy = Math.sign(next.y - leg.y);
+      if (ndx !== 0 || ndy !== 0) points.push(lanePoint(leg.x + ndx * 60, leg.y + ndy * 60, ndx, ndy));
+    }
     cx = leg.x;
     cy = leg.y;
   }
   return points.length > 0 ? points : [lanePoint(target.x, target.y, 1, 0)];
+}
+
+/**
+ * The nearest point on a road centreline to a car that has left the road (pushed by a crash
+ * or wedged on a corner): the closest avenue or street, whichever is nearer.
+ */
+function nearestRoadPoint(city, x, y) {
+  let bestAx = city.intersections[0].x;
+  let bestAd = Infinity;
+  for (const p of city.intersections) {
+    const d = Math.abs(p.x - x);
+    if (d < bestAd) {
+      bestAd = d;
+      bestAx = p.x;
+    }
+  }
+  let bestSy = city.intersections[0].y;
+  let bestSd = Infinity;
+  for (const p of city.intersections) {
+    const d = Math.abs(p.y - y);
+    if (d < bestSd) {
+      bestSd = d;
+      bestSy = p.y;
+    }
+  }
+  return bestAd <= bestSd ? { x: bestAx, y } : { x, y: bestSy };
 }
 
 export function spawnTraffic(state) {
@@ -116,11 +158,39 @@ function driveTrafficCar(state, car, dt) {
     car.route = makeRoute(state.city, state.rng, car.x, car.y);
     car.routeIndex = 0;
   }
+  // Off the road (pushed by a crash, wedged on a corner): drive back to the nearest road
+  // first instead of aiming across the blocks at a far waypoint. A building can sit between
+  // the car and the road, so this branch has the same stuck detection as the main one: grind
+  // for 1.5 s and the car backs out and falls back to the nearest intersection — open ground
+  // with no building in the way — instead of pushing at the same wall again.
+  if (!isOnRoad(state.city, car.x, car.y)) {
+    const back = car.recoverToJunction
+      ? nearestIntersection(state.city, car.x, car.y)
+      : nearestRoadPoint(state.city, car.x, car.y);
+    const wantAngle = angleTo(car.x, car.y, back.x, back.y);
+    const steer = Math.max(-1, Math.min(1, angleDiff(wantAngle, car.angle) * 2.2));
+    stepCar(car, dt, 0.5, steer, false, state.city);
+    if (Math.abs(car.speed) < 25) {
+      car.stuckTimer += dt;
+      if (car.stuckTimer > 1.5) {
+        car.stuckTimer = 0;
+        car.reverseTimer = 1.2;
+        car.stuckSteer = steer;
+        car.recoverToJunction = true;
+        car.route = makeRoute(state.city, state.rng, car.x, car.y);
+        car.routeIndex = 0;
+      }
+    } else {
+      car.stuckTimer = 0;
+    }
+    return;
+  }
+  car.recoverToJunction = false;
   const target = car.route[car.routeIndex];
   const dx = target.x - car.x;
   const dy = target.y - car.y;
   const dist = Math.hypot(dx, dy);
-  if (dist < 46) {
+  if (dist < 30) {
     car.routeIndex += 1;
     return;
   }
@@ -131,6 +201,14 @@ function driveTrafficCar(state, car, dt) {
   if (ahead < TRAFFIC.stopDistance) throttle = -1;
   else if (ahead < TRAFFIC.slowDistance) throttle = 0.15;
   if (Math.abs(angleDiff(wantAngle, car.angle)) > 1.1) throttle = Math.min(throttle, 0.3);
+  // Slow into a turn: a car that arrives at a corner at cruise speed swings wide onto the
+  // sidewalk. When the next route point turns away from this leg, ease off early — the
+  // turn radius shrinks with speed, so a slow car turns inside the intersection.
+  const next = car.route[car.routeIndex + 1];
+  if (next && dist < 200) {
+    const legAngle = Math.atan2(next.y - target.y, next.x - target.x);
+    if (Math.abs(angleDiff(legAngle, wantAngle)) > 0.5) throttle = Math.min(throttle, 0.2);
+  }
   const result = stepCar(car, dt, throttle, steer, false, state.city);
   // A car pushing at full throttle without moving is wedged on a corner: back out and
   // pick a fresh route instead of grinding there for the rest of the game.

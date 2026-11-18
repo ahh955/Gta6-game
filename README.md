@@ -28,12 +28,18 @@ on foot and by car, steal cars, outrun the law, and work through five missions w
 - **Missions + story** — five jobs with briefings, objectives, waypoints on the minimap and
   cash rewards: a car theft, a getaway drive under pursuit, a timed delivery, a turf-war
   shootout, and a final heist in a gold sports car.
+- **Side activities** — street races and hidden collectibles. Three checkpoint races start
+  at glowing gates around the city (beach sprint, harbor loop, downtown dash): beat the
+  clock for cash, with a gold time for a bonus. Twelve golden doubloons are hidden across
+  the city — parks, piers, rooftops and alleys — each worth cash, with a big bonus for
+  finding them all.
 - **Combat** — pistol with aim, ammo and reload, punches, rival gang members who hunt and
   shoot back, health and ammo pickups.
-- **HUD** — live canvas minimap (player, traffic, police, mission markers, north), money,
-  health, wanted stars, objective banner, speedometer and dialogue box.
+- **HUD** — live canvas minimap (player, traffic, police, mission markers, race gates and
+  doubloons, north), money, health, wanted stars, objective banner, speedometer and
+  dialogue box.
 - **Start, pause and save** — title screen, pause menu, and progress (money, missions,
-  position) saved to localStorage.
+  races, doubloons, position) saved to localStorage.
 - **Sound** — everything synthesized live with WebAudio: engine hum, police sirens,
   gunshots, pickups, mission jingles and a slow golden-hour music loop. No audio files.
 
@@ -50,6 +56,7 @@ game's own. Nothing comes from Rockstar Games or any other commercial game.
 | Click | Shoot |
 | E | Enter / exit car |
 | F | Punch |
+| R | Start a street race at a race gate |
 | P / Esc | Pause |
 | M | Mute |
 | Enter / Space | Start, continue dialogue |
@@ -68,13 +75,14 @@ Then open http://localhost:8080 in desktop Chrome. No build step, no dependencie
 - `game/src/` — the game's own source, one job per file: `config.js` (tuning),
   `random.js` (seeded RNG), `input.js`, `world.js` (city generation), `vehicles.js`
   (car physics), `traffic.js`, `pedestrians.js`, `player.js`, `combat.js`, `police.js`
-  (wanted level), `missions.js`, `story.js`, `audio.js`, `save.js`, `hud.js` (HUD and
-  minimap), `render.js`, `shots.js` (screenshot poses), `game.js` (state and the step),
-  `main.js` (boot and the loop).
+  (wanted level), `missions.js`, `story.js`, `races.js` (street races), `collectibles.js`
+  (hidden doubloons), `audio.js`, `save.js`, `hud.js` (HUD and minimap), `render.js`,
+  `shots.js` (screenshot poses), `game.js` (state and the step), `main.js` (boot and
+  the loop).
 - `main.ts` — the entry program: copies `game/` and `screenshots/` to `/output` and writes
   `dossier.json` with the kit's `vendor/makefun-game.ts`.
-- `screenshots/` — four real renders of the game: the title, driving, a police chase and a
-  mission firefight.
+- `screenshots/` — four real renders of the game: a street race gate, driving, a police
+  chase and collecting doubloons.
 
 ## License
 

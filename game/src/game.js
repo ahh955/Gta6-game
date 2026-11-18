@@ -10,6 +10,8 @@ import { checkPedCarHits, spawnPedestrians, updatePedestrians } from './pedestri
 import { resolveCarCollisions, spawnParkedCars, spawnTraffic, updateTraffic } from './traffic.js';
 import { updatePolice } from './police.js';
 import { createMissionState, failActiveMission, missionStartPoint, updateMissions } from './missions.js';
+import { cancelRace, createRaceState, updateRaces } from './races.js';
+import { createDoubloons, updateCollectibles } from './collectibles.js';
 
 export function createGame(seed) {
   const rng = createRandom(seed);
@@ -31,6 +33,8 @@ export function createGame(seed) {
     wanted: { points: 0, level: 0, unseenTimer: 0 },
     mission: createMissionState(),
     missionStart: null,
+    race: createRaceState(),
+    doubloons: createDoubloons(),
     camera: { x: 1000, y: 700, shake: 0 },
     bustProgress: 0,
     dialogue: null,
@@ -103,8 +107,13 @@ export function stepGame(state, input, actions, dt) {
   updatePickups(state, dt);
   updatePolice(state, dt);
   // Missions only run once the player has started (never on the title backdrop) and never
-  // during a staged screenshot, where the scene sets its own mission state.
-  if (state.started && !state.shotMode) updateMissions(state, dt);
+  // during a staged screenshot, where the scene sets its own mission state. Races and
+  // doubloons follow the same rule, so a screenshot drive never collects one by accident.
+  if (state.started && !state.shotMode) {
+    updateMissions(state, dt);
+    updateRaces(state, dt, actions);
+    updateCollectibles(state);
+  }
   updateParticles(state, dt);
   updateCamera(state, dt);
 
@@ -153,6 +162,7 @@ export function respawnAfterTrouble(state, kind) {
   }
   state.enemies.length = 0;
   state.bullets.length = 0;
+  cancelRace(state);
   failActiveMission(state, kind === 'busted' ? 'Busted — the job is blown.' : 'Wasted — the job is blown.');
   state.camera.x = player.x;
   state.camera.y = player.y;

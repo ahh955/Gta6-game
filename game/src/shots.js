@@ -1,4 +1,5 @@
-// The screenshot scenes behind ?shot=start|drive|chase|mission. Each one stages a real
+// The screenshot scenes behind ?shot=race|drive|chase|doubloon (start and mission are kept
+// as staging functions for the title and firefight scenes). Each one stages a real
 // situation (a car, a wanted level, a mission in progress) and then plays the real rules
 // forward for a fixed number of steps under a simple autopilot, so the frame is what the game
 // really looks like and the same seed always gives the same frame.
@@ -8,6 +9,8 @@ import { enterCar } from './player.js';
 import { createCar } from './vehicles.js';
 import { spawnEnemies } from './combat.js';
 import { MISSION_BRIEFINGS } from './story.js';
+import { RACES } from './races.js';
+import { DOUBLOON_REWARD } from './collectibles.js';
 import { SCREEN_PLAY, SCREEN_TITLE } from './render.js';
 
 function angleDiff(a, b) {
@@ -68,6 +71,30 @@ function stageStart(state, input) {
   giveCar(state, 'sedan');
   driveRoute(state, input, [{ x: 1000, y: 2400 }, { x: 2200, y: 2400 }], 6);
   return { screen: SCREEN_TITLE };
+}
+
+function stageRace(state, input) {
+  // The player sits in a sports car at the Beach Sprint start gate, the glowing gate ring
+  // and checkered flag in frame and the "Press R" prompt on the HUD: the round-2 street
+  // races. The race itself is not started — the gate and the prompt are the shot.
+  const player = state.player;
+  const gate = RACES[0].start;
+  const car = createCar('sports', gate.x, gate.y, 0, 'parked');
+  state.cars.push(car);
+  player.x = car.x;
+  player.y = car.y;
+  player.ownedCars.add(car.id);
+  enterCar(state, car);
+  state.camera.x = player.x;
+  state.camera.y = player.y;
+  // A couple of seconds of live world so traffic and pedestrians settle into the frame.
+  const steps = Math.floor(2 / STEP);
+  for (let i = 0; i < steps; i += 1) {
+    input.setMove(0, 0);
+    updateMouseWorld(state, input);
+    stepGame(state, input, { enter: false, punch: false }, STEP);
+  }
+  return { screen: SCREEN_PLAY };
 }
 
 function stageDrive(state, input) {
@@ -171,13 +198,39 @@ function stageMission(state, input) {
   return { screen: SCREEN_PLAY };
 }
 
+function stageDoubloon(state, input) {
+  // The player on foot in the park, one doubloon already pocketed and two more bobbing in
+  // frame: the round-2 hidden coins. Shot mode never collects (updateCollectibles is
+  // skipped there), so the found coin is staged directly, with its $100, like the mission
+  // stage sets its own mission state.
+  const player = state.player;
+  player.x = 1925;
+  player.y = 1625;
+  player.health = 100;
+  state.camera.x = player.x;
+  state.camera.y = player.y;
+  state.doubloons.found[0] = true;
+  state.doubloons.count = 1;
+  player.money += DOUBLOON_REWARD;
+  // A few seconds of live world so pedestrians wander in and the coins' bob settles.
+  const steps = Math.floor(2 / STEP);
+  for (let i = 0; i < steps; i += 1) {
+    input.setMove(0, 0);
+    updateMouseWorld(state, input);
+    stepGame(state, input, { enter: false, punch: false }, STEP);
+  }
+  return { screen: SCREEN_PLAY };
+}
+
 /**
- * Set the game to the named scene (start, drive, chase or mission; any other name is start)
- * and return the screen to draw over it.
+ * Set the game to the named scene (race, drive, chase, doubloon, start or mission; any
+ * other name is start) and return the screen to draw over it.
  */
 export function stageShot(name, state, input) {
   if (name === 'drive') return stageDrive(state, input);
   if (name === 'chase') return stageChase(state, input);
   if (name === 'mission') return stageMission(state, input);
+  if (name === 'race') return stageRace(state, input);
+  if (name === 'doubloon') return stageDoubloon(state, input);
   return stageStart(state, input);
 }
