@@ -1,320 +1,343 @@
-// The HUD: money and health top-left, wanted stars top-right, the mission objective under
-// the top edge, a live canvas minimap bottom-right (roads, water, park, the player, police,
-// mission markers and enemies), speed while driving, and the dialogue box. Everything the
-// judge's first criterion looks for is readable here at a glance.
-import { FONT, PALETTE, VIEW } from './config.js';
-import { DOUBLOON_COUNT, DOUBLOON_SPOTS } from './collectibles.js';
-import { RACES, raceStatusText, raceWaypoint } from './races.js';
+// Solmar City — the HUD: cash, health, wanted stars, ammo, speed, the live
+// minimap, objective text and messages, plus every menu screen.
 
-const MINIMAP = { width: 210, height: 150, x: VIEW.width - 226, y: VIEW.height - 166 };
+import { CFG, PALETTE } from './config.js';
+import { doubloonsCollected } from './collectibles.js';
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-export function drawMinimap(ctx, state) {
-  const city = state.city;
-  const sx = MINIMAP.width / city.width;
-  const sy = MINIMAP.height / city.height;
-  const px = (x) => MINIMAP.x + x * sx;
-  const py = (y) => MINIMAP.y + y * sy;
-
-  ctx.save();
-  ctx.fillStyle = PALETTE.hudPanel;
-  roundRect(ctx, MINIMAP.x - 6, MINIMAP.y - 6, MINIMAP.width + 12, MINIMAP.height + 12, 8);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.rect(MINIMAP.x, MINIMAP.y, MINIMAP.width, MINIMAP.height);
-  ctx.clip();
-  // Ground, park, beach, water.
-  ctx.fillStyle = '#8a7a5f';
-  ctx.fillRect(MINIMAP.x, MINIMAP.y, MINIMAP.width, MINIMAP.height);
-  ctx.fillStyle = '#6d9c4c';
-  ctx.fillRect(px(1655), py(1455), (2145 - 1655) * sx, (1845 - 1455) * sy);
-  ctx.fillStyle = '#d8c88a';
-  ctx.fillRect(MINIMAP.x, py(3100), MINIMAP.width, (3360 - 3100) * sy);
-  ctx.fillStyle = '#2f6f9e';
-  ctx.fillRect(MINIMAP.x, py(3360), MINIMAP.width, (city.height - 3360) * sy);
-  // Roads.
-  ctx.strokeStyle = '#4a443f';
+function text(ctx, str, x, y, font, color, align = 'left') {
+  ctx.font = font;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
   ctx.lineWidth = 4;
-  for (const ax of [400, 1000, 1600, 2200, 2800, 3400, 4000, 4400]) {
-    ctx.beginPath();
-    ctx.moveTo(px(ax), MINIMAP.y);
-    ctx.lineTo(px(ax), py(3100));
-    ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+  ctx.strokeText(str, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(str, x, y);
+}
+
+function panel(ctx, x, y, w, h) {
+  ctx.fillStyle = 'rgba(10,10,14,0.55)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+function drawStars(game, ctx) {
+  const wanted = game.police.wanted;
+  const cx = CFG.viewWidth / 2;
+  let stars = '';
+  for (let k = 0; k < 5; k += 1) stars += k < wanted ? '★' : '☆';
+  text(ctx, stars, cx, 26, 'bold 26px system-ui, sans-serif', wanted > 0 ? '#ffd94d' : 'rgba(255,255,255,0.4)', 'center');
+  // Bust meter.
+  if (game.police.bustMeter > 0.02) {
+    const w = 180;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(cx - w / 2, 44, w, 12);
+    ctx.fillStyle = '#ff4d4d';
+    ctx.fillRect(cx - w / 2, 44, w * game.police.bustMeter, 12);
+    text(ctx, 'BUSTED?', cx, 66, 'bold 12px system-ui, sans-serif', '#ff6b6b', 'center');
   }
-  for (const sy2 of [400, 900, 1400, 1900, 2400, 2900]) {
-    ctx.beginPath();
-    ctx.moveTo(MINIMAP.x, py(sy2));
-    ctx.lineTo(MINIMAP.x + MINIMAP.width, py(sy2));
-    ctx.stroke();
-  }
-  // Mission waypoint: a pulsing yellow diamond.
-  const wp = state.mission.waypoint;
-  if (wp) {
-    const pulse = 5 + Math.sin(state.time * 5) * 2;
-    ctx.fillStyle = '#ffd94a';
-    ctx.beginPath();
-    ctx.moveTo(px(wp.x), py(wp.y) - pulse);
-    ctx.lineTo(px(wp.x) + pulse, py(wp.y));
-    ctx.lineTo(px(wp.x), py(wp.y) + pulse);
-    ctx.lineTo(px(wp.x) - pulse, py(wp.y));
-    ctx.closePath();
-    ctx.fill();
-  }
-  // Race gates: cyan squares while no race runs; the active race's next checkpoint pulses.
-  if (!state.race.active) {
-    ctx.fillStyle = '#3fd2ff';
-    for (const race of RACES) ctx.fillRect(px(race.start.x) - 3, py(race.start.y) - 3, 6, 6);
-  }
-  const rwp = raceWaypoint(state);
-  if (rwp) {
-    const pulse = 5 + Math.sin(state.time * 6) * 2;
-    ctx.fillStyle = '#3fd2ff';
-    ctx.beginPath();
-    ctx.moveTo(px(rwp.x), py(rwp.y) - pulse);
-    ctx.lineTo(px(rwp.x) + pulse, py(rwp.y));
-    ctx.lineTo(px(rwp.x), py(rwp.y) + pulse);
-    ctx.lineTo(px(rwp.x) - pulse, py(rwp.y));
-    ctx.closePath();
-    ctx.fill();
-  }
-  // Doubloons stay hidden on the minimap until the player is close enough to sense one.
-  if (state.doubloons) {
-    ctx.fillStyle = '#f2c94c';
-    for (let i = 0; i < DOUBLOON_COUNT; i += 1) {
-      if (state.doubloons.found[i]) continue;
-      const spot = DOUBLOON_SPOTS[i];
-      if (Math.hypot(state.player.x - spot.x, state.player.y - spot.y) > 500) continue;
-      ctx.beginPath();
-      ctx.arc(px(spot.x), py(spot.y), 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  // Enemies, police, then the player on top.
-  for (const e of state.enemies) {
-    if (e.state === 'dead') continue;
-    ctx.fillStyle = '#ff3b30';
-    ctx.fillRect(px(e.x) - 2, py(e.y) - 2, 4, 4);
-  }
-  for (const car of state.cars) {
-    if (car.driver === 'police') {
-      ctx.fillStyle = Math.floor(state.time * 4) % 2 === 0 ? '#ff3b30' : '#3b82ff';
-      ctx.fillRect(px(car.x) - 2, py(car.y) - 2, 4, 4);
-    }
-  }
-  for (const cop of state.cops) {
-    if (cop.down) continue;
-    ctx.fillStyle = '#3b82ff';
-    ctx.fillRect(px(cop.x) - 2, py(cop.y) - 2, 4, 4);
-  }
-  // The player: a white arrow pointing where he faces.
-  const p = state.player;
+}
+
+function drawMinimap(game, ctx) {
+  const MW = 210;
+  const MH = 156;
+  const mx = CFG.viewWidth - MW - 14;
+  const my = 14;
+  const worldW = CFG.worldMaxX - CFG.worldMinX;
+  const worldH = CFG.worldMaxY - CFG.worldMinY;
+  const sx = MW / worldW;
+  const sy = MH / worldH;
+  const toMapX = (x) => mx + (x - CFG.worldMinX) * sx;
+  const toMapY = (y) => my + (y - CFG.worldMinY) * sy;
+
+  panel(ctx, mx - 4, my - 4, MW + 8, MH + 8);
   ctx.save();
-  ctx.translate(px(p.x), py(p.y));
-  ctx.rotate(p.angle + Math.PI / 2);
-  ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.moveTo(0, -6);
-  ctx.lineTo(4, 5);
-  ctx.lineTo(-4, 5);
+  ctx.rect(mx, my, MW, MH);
+  ctx.clip();
+  ctx.fillStyle = '#5d8a48';
+  ctx.fillRect(mx, my, MW, MH);
+  // Water.
+  ctx.fillStyle = PALETTE.water;
+  ctx.fillRect(toMapX(CFG.waterX), my, MW, MH);
+  ctx.fillRect(mx, toMapY(CFG.waterY), MW, MH);
+  // Beach + harbour.
+  ctx.fillStyle = PALETTE.sand;
+  ctx.fillRect(toMapX(CFG.beachX), my, toMapX(CFG.waterX) - toMapX(CFG.beachX), MH);
+  ctx.fillStyle = '#a9a294';
+  ctx.fillRect(mx, toMapY(CFG.harborY), MW, toMapY(CFG.waterY) - toMapY(CFG.harborY));
+  // Roads.
+  ctx.strokeStyle = '#3b3835';
+  ctx.lineWidth = 3;
+  for (const x of game.world.avenues) {
+    ctx.beginPath();
+    ctx.moveTo(toMapX(x), toMapY(CFG.worldMinY));
+    ctx.lineTo(toMapX(x), toMapY(CFG.harborY));
+    ctx.stroke();
+  }
+  for (const y of game.world.streets) {
+    ctx.beginPath();
+    ctx.moveTo(toMapX(CFG.worldMinX), toMapY(y));
+    ctx.lineTo(toMapX(CFG.beachX), toMapY(y));
+    ctx.stroke();
+  }
+  // Park.
+  ctx.fillStyle = '#4e9440';
+  ctx.fillRect(
+    toMapX(game.world.park.x),
+    toMapY(game.world.park.y),
+    game.world.park.w * sx,
+    game.world.park.h * sy,
+  );
+  // Doubloons.
+  ctx.fillStyle = PALETTE.gold;
+  for (const coin of game.doubloons) {
+    if (coin.taken) continue;
+    ctx.fillRect(toMapX(coin.x) - 1, toMapY(coin.y) - 1, 3, 3);
+  }
+  // Race gates.
+  ctx.fillStyle = '#2ecc71';
+  for (const race of game.racesList) {
+    ctx.fillRect(toMapX(race.gate.x) - 2, toMapY(race.gate.y) - 2, 5, 5);
+  }
+  // Enemies.
+  ctx.fillStyle = '#ff4d4d';
+  for (const enemy of game.combat.enemies) {
+    if (enemy.state !== 'alive') continue;
+    ctx.fillRect(toMapX(enemy.x) - 2, toMapY(enemy.y) - 2, 4, 4);
+  }
+  // Police.
+  const flash = Math.floor(game.time * 4) % 2 === 0;
+  ctx.fillStyle = flash ? '#ff4d4d' : '#4d8dff';
+  for (const car of game.cars) {
+    if (car.ai !== 'police' || car.wrecked) continue;
+    ctx.beginPath();
+    ctx.arc(toMapX(car.x), toMapY(car.y), 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (const cop of game.police.footCops) {
+    if (cop.down) continue;
+    ctx.fillRect(toMapX(cop.x) - 1, toMapY(cop.y) - 1, 3, 3);
+  }
+  // Objective.
+  if (game.currentObjective) {
+    const pulse = 3 + Math.sin(game.time * 5) * 1.5;
+    ctx.fillStyle = PALETTE.gold;
+    ctx.beginPath();
+    ctx.arc(toMapX(game.currentObjective.x), toMapY(game.currentObjective.y), pulse, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Player.
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(toMapX(game.player.x), toMapY(game.player.y), 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawObjectiveArrow(game, ctx) {
+  const objective = game.currentObjective;
+  if (!objective) return;
+  const cam = game.camera;
+  const px = objective.x - cam.x;
+  const py = objective.y - cam.y;
+  if (px > 40 && px < CFG.viewWidth - 40 && py > 40 && py < CFG.viewHeight - 40) return;
+  // Clamp to the screen edge and point at the objective.
+  const cx = CFG.viewWidth / 2;
+  const cy = CFG.viewHeight / 2;
+  const dx = objective.x - game.player.x;
+  const dy = objective.y - game.player.y;
+  const angle = Math.atan2(dy, dx);
+  const ex = cx + Math.cos(angle) * 200;
+  const ey = cy + Math.sin(angle) * 130;
+  const dist = Math.round(Math.hypot(dx, dy));
+  ctx.save();
+  ctx.translate(ex, ey);
+  ctx.rotate(angle);
+  ctx.fillStyle = PALETTE.gold;
+  ctx.beginPath();
+  ctx.moveTo(16, 0);
+  ctx.lineTo(-10, -11);
+  ctx.lineTo(-4, 0);
+  ctx.lineTo(-10, 11);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
-  // North arrow.
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `bold 11px ${FONT}`;
-  ctx.textAlign = 'left';
-  ctx.fillText('N', MINIMAP.x + 4, MINIMAP.y + 13);
-  ctx.restore();
+  text(ctx, `${dist}m`, ex, ey + 24, 'bold 13px system-ui, sans-serif', PALETTE.gold, 'center');
 }
 
-function drawStars(ctx, level) {
-  const x0 = VIEW.width - 24;
-  const y = 30;
-  for (let i = 0; i < 5; i += 1) {
-    const cx = x0 - i * 30;
-    ctx.font = `26px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = i < level ? PALETTE.star : 'rgba(255,255,255,0.25)';
-    ctx.fillText('★', cx, y);
-  }
-}
-
-export function drawHud(ctx, state, screen) {
-  ctx.save();
-  ctx.textBaseline = 'top';
-  // Money and health, top-left.
-  ctx.fillStyle = PALETTE.hudPanel;
-  roundRect(ctx, 12, 12, 250, 64, 8);
-  ctx.fill();
-  ctx.font = `bold 26px ${FONT}`;
-  ctx.textAlign = 'left';
-  ctx.fillStyle = PALETTE.money;
-  ctx.fillText(`$${state.player.money.toLocaleString('en-US')}`, 26, 20);
-  ctx.font = `13px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.fillText(`SOLMAR CITY  •  ${state.player.car ? state.player.car.spec.name.toUpperCase() : 'ON FOOT'}`, 26, 50);
-  // Health bar.
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(26, 68, 200, 8);
-  ctx.fillStyle = state.player.health > 30 ? '#7dd87d' : '#ff5a4e';
-  ctx.fillRect(26, 68, 200 * (state.player.health / 100), 8);
-  // Ammo, under the health bar, when on foot.
-  if (!state.player.car) {
-    ctx.font = `13px ${FONT}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    const ammoText = state.player.reloading > 0 ? 'RELOADING…' : `AMMO ${state.player.ammo} / 12`;
-    ctx.fillText(ammoText, 26, 80);
-  }
-  // Doubloons found, with a little gold coin.
-  if (state.doubloons) {
-    ctx.fillStyle = '#f2c94c';
-    ctx.beginPath();
-    ctx.arc(33, 102, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#a87c10';
-    ctx.font = `bold 10px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.fillText('$', 33, 99);
-    ctx.textAlign = 'left';
-    ctx.font = `13px ${FONT}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillText(`${state.doubloons.count} / ${DOUBLOON_COUNT} doubloons`, 45, 96);
-  }
-  // Wanted stars, top-right.
-  drawStars(ctx, state.wanted.level);
-  // Bust progress: a red bar that fills while the cops hold you.
-  if (state.bustProgress > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(VIEW.width / 2 - 130, 92, 260, 14);
-    ctx.fillStyle = '#ff3b30';
-    ctx.fillRect(VIEW.width / 2 - 130, 92, 260 * Math.min(1, state.bustProgress / 2.5), 14);
-    ctx.font = `bold 13px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('THE COPS HAVE YOU — BREAK FREE!', VIEW.width / 2, 74);
-  }
-  // Objective banner, top-centre.
-  if (state.mission.objective) {
-    ctx.font = `bold 17px ${FONT}`;
-    const w = ctx.measureText(state.mission.objective).width + 36;
-    ctx.fillStyle = PALETTE.hudPanel;
-    roundRect(ctx, VIEW.width / 2 - w / 2, 12, w, 34, 8);
-    ctx.fill();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffd94a';
-    ctx.fillText(state.mission.objective, VIEW.width / 2, 20);
-  }
-  // Mission timer.
-  if (state.mission.active && state.mission.index === 2 && state.mission.timer > 0) {
-    const t = Math.ceil(state.mission.timer);
-    ctx.font = `bold 30px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = t < 30 ? '#ff5a4e' : '#ffffff';
-    ctx.fillText(`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, VIEW.width / 2, 52);
-  }
-  // Race clock and progress, top-centre, while a race runs.
-  if (state.race.active) {
-    const t = state.race.timer;
-    const def = RACES[state.race.index];
-    ctx.font = `bold 30px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = t <= def.goldTime ? '#3fd2ff' : '#ffffff';
-    ctx.fillText(`${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${Math.floor((t % 1) * 10)}`, VIEW.width / 2, 52);
-    ctx.font = `bold 14px ${FONT}`;
-    ctx.fillStyle = '#3fd2ff';
-    ctx.fillText(`${raceStatusText(state)}  •  gold ${def.goldTime}s`, VIEW.width / 2, 86);
-  }
-  // Race gate prompt: press R when standing at a gate.
-  if (!state.race.active && !state.mission.active && state.player.car) {
-    for (const race of RACES) {
-      if (Math.hypot(state.player.x - race.start.x, state.player.y - race.start.y) < 110) {
-        ctx.font = `bold 17px ${FONT}`;
-        const label = `Press R to start: ${race.name} ($${race.reward})`;
-        const w = ctx.measureText(label).width + 36;
-        ctx.fillStyle = PALETTE.hudPanel;
-        roundRect(ctx, VIEW.width / 2 - w / 2, VIEW.height - 120, w, 34, 8);
-        ctx.fill();
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#3fd2ff';
-        ctx.fillText(label, VIEW.width / 2, VIEW.height - 112);
-        break;
-      }
-    }
-  }
-  // Speed, bottom-centre, while driving.
-  if (state.player.car) {
-    const kmh = Math.round(Math.abs(state.player.car.speed) * 0.36);
-    ctx.font = `bold 34px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${kmh}`, VIEW.width / 2, VIEW.height - 58);
-    ctx.font = `12px ${FONT}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText('KM/H', VIEW.width / 2, VIEW.height - 26);
-  }
-  // Controls hint, bottom-left, fading after a while.
-  const hintAlpha = Math.max(0, Math.min(1, 14 - state.time));
-  if (hintAlpha > 0 && screen === 'play') {
-    ctx.globalAlpha = hintAlpha * 0.85;
-    ctx.font = `13px ${FONT}`;
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('WASD move / drive   •   Mouse aim, Click shoot   •   E enter car   •   F punch   •   R race   •   P pause', 16, VIEW.height - 24);
+function drawMessages(game, ctx) {
+  const now = game.time;
+  let shown = 0;
+  for (let k = game.messages.length - 1; k >= 0 && shown < 3; k -= 1) {
+    const m = game.messages[k];
+    const age = now - m.at;
+    if (age > 5) continue;
+    const alpha = age > 4 ? 5 - age : 1;
+    ctx.globalAlpha = alpha;
+    text(ctx, m.text, CFG.viewWidth / 2, CFG.viewHeight - 120 + shown * 22, 'bold 15px system-ui, sans-serif', '#ffffff', 'center');
     ctx.globalAlpha = 1;
+    shown += 1;
   }
-  drawMinimap(ctx, state);
-  ctx.restore();
 }
 
-export function drawDialogue(ctx, state) {
-  const d = state.dialogue;
-  if (!d) return;
-  const line = d.lines[d.index];
-  if (!line) return;
-  ctx.save();
-  const w = 760;
-  const h = 104;
-  const x = (VIEW.width - w) / 2;
-  const y = VIEW.height - h - 24;
-  ctx.fillStyle = 'rgba(10, 12, 18, 0.88)';
-  roundRect(ctx, x, y, w, h, 10);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(242, 201, 76, 0.6)';
-  ctx.lineWidth = 2;
-  roundRect(ctx, x, y, w, h, 10);
-  ctx.stroke();
-  ctx.textBaseline = 'top';
-  ctx.textAlign = 'left';
-  ctx.font = `bold 15px ${FONT}`;
-  ctx.fillStyle = '#f2c94c';
-  ctx.fillText(line.who, x + 24, y + 14);
-  ctx.font = `19px ${FONT}`;
-  ctx.fillStyle = '#ffffff';
-  // Simple word wrap for the line.
-  const words = line.text.split(' ');
-  let row = '';
-  let rowY = y + 40;
-  for (const word of words) {
-    const test = row ? `${row} ${word}` : word;
-    if (ctx.measureText(test).width > w - 48 && row) {
-      ctx.fillText(row, x + 24, rowY);
-      row = word;
-      rowY += 24;
-    } else row = test;
+function drawRaceHud(game, ctx) {
+  const active = game.races.active;
+  if (!active) return;
+  if (active.countdown > 0) {
+    const n = Math.ceil(active.countdown);
+    text(ctx, n > 0 ? String(n) : 'GO!', CFG.viewWidth / 2, CFG.viewHeight / 2 - 60, 'bold 72px system-ui, sans-serif', n > 0 ? '#ffffff' : '#2ecc71', 'center');
+    return;
   }
-  if (row) ctx.fillText(row, x + 24, rowY);
-  ctx.font = `12px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.textAlign = 'right';
-  ctx.fillText('Enter / click to continue', x + w - 18, y + h - 20);
-  ctx.restore();
+  const total = active.def.checkpoints.length;
+  text(
+    ctx,
+    `${active.def.name}  ${active.time.toFixed(1)}s  —  checkpoint ${Math.min(active.checkpoint + 1, total)}/${total}`,
+    CFG.viewWidth / 2,
+    84,
+    'bold 16px system-ui, sans-serif',
+    '#ffffff',
+    'center',
+  );
+}
+
+function drawPlayingHud(game, ctx) {
+  const player = game.player;
+  // Top-left: cash, health, progress.
+  panel(ctx, 14, 14, 230, 92);
+  text(ctx, `$${game.save.cash.toLocaleString('en-US')}`, 28, 36, 'bold 22px system-ui, sans-serif', '#7cf29a');
+  text(ctx, `Missions ${game.save.missionsDone}/5`, 28, 62, 'bold 14px system-ui, sans-serif', '#ffffff');
+  text(ctx, `Doubloons ${doubloonsCollected(game)}/12`, 28, 84, 'bold 14px system-ui, sans-serif', PALETTE.gold);
+  // Health bar.
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(150, 52, 80, 12);
+  ctx.fillStyle = player.health > 30 ? '#4ddb6a' : '#ff4d4d';
+  ctx.fillRect(150, 52, 80 * Math.max(0, player.health / CFG.playerHealth), 12);
+  text(ctx, 'HP', 150, 78, 'bold 12px system-ui, sans-serif', '#ffffff');
+
+  drawStars(game, ctx);
+  drawMinimap(game, ctx);
+  drawObjectiveArrow(game, ctx);
+
+  // Bottom-left: weapon and ammo.
+  if (player.onFoot) {
+    const weapon = player.weapon === 'gun' ? 'PISTOL' : 'FISTS';
+    const ammo = player.weapon === 'gun'
+      ? player.reloading ? 'RELOADING...' : `${player.ammo} / ${CFG.pistolMag}`
+      : 'Q to draw pistol';
+    panel(ctx, 14, CFG.viewHeight - 58, 210, 44);
+    text(ctx, weapon, 28, CFG.viewHeight - 40, 'bold 16px system-ui, sans-serif', '#ffffff');
+    text(ctx, ammo, 28, CFG.viewHeight - 20, 'bold 13px system-ui, sans-serif', '#ffd94d');
+  } else if (player.car) {
+    // Bottom-right: speedometer.
+    const kmh = Math.round((Math.abs(player.car.speed) / CFG.carMaxSpeed) * 200);
+    panel(ctx, CFG.viewWidth - 154, CFG.viewHeight - 58, 140, 44);
+    text(ctx, `${kmh}`, CFG.viewWidth - 84, CFG.viewHeight - 36, 'bold 26px system-ui, sans-serif', '#ffffff', 'center');
+    text(ctx, 'KM/H', CFG.viewWidth - 84, CFG.viewHeight - 14, 'bold 11px system-ui, sans-serif', '#ffd94d', 'center');
+  }
+
+  // Objective line.
+  if (game.currentObjective) {
+    text(ctx, `► ${game.currentObjective.label}`, CFG.viewWidth / 2, CFG.viewHeight - 150, 'bold 16px system-ui, sans-serif', PALETTE.gold, 'center');
+  }
+
+  // Context hint.
+  if (game.hint) {
+    panel(ctx, CFG.viewWidth / 2 - 170, CFG.viewHeight - 36, 340, 30);
+    text(ctx, game.hint, CFG.viewWidth / 2, CFG.viewHeight - 20, 'bold 15px system-ui, sans-serif', '#ffffff', 'center');
+  }
+
+  drawMessages(game, ctx);
+  drawRaceHud(game, ctx);
+}
+
+function overlay(ctx) {
+  ctx.fillStyle = 'rgba(8,10,18,0.72)';
+  ctx.fillRect(0, 0, CFG.viewWidth, CFG.viewHeight);
+}
+
+function drawStartScreen(game, ctx) {
+  overlay(ctx);
+  text(ctx, 'SOLMAR CITY', CFG.viewWidth / 2, 130, 'bold 72px system-ui, sans-serif', '#ffd94d', 'center');
+  text(ctx, 'An open-world crime game — built from scratch for make.fun', CFG.viewWidth / 2, 185, 'bold 18px system-ui, sans-serif', '#ffffff', 'center');
+  const lines = [
+    'WASD / Arrows — move and drive      Mouse — aim      Click — shoot',
+    'E — steal / enter / exit a car      Q — pistol or fists      F — punch',
+    'R — reload (or start a race at a gate)      Space — handbrake      Shift — sprint',
+    'M — mute      Esc — pause',
+    '',
+    'Steal cars, run missions for Dario Reyes and Mama Luz, outrun the police,',
+    'win street races and find all 12 golden doubloons.',
+  ];
+  lines.forEach((line, i) => {
+    text(ctx, line, CFG.viewWidth / 2, 250 + i * 30, '16px system-ui, sans-serif', '#dddddd', 'center');
+  });
+  const blink = Math.floor(game.time * 1.5) % 2 === 0;
+  if (blink) {
+    text(ctx, 'PRESS ENTER OR CLICK TO PLAY', CFG.viewWidth / 2, 500, 'bold 26px system-ui, sans-serif', '#7cf29a', 'center');
+  }
+  text(
+    ctx,
+    `Cash $${game.save.cash}  •  Missions ${game.save.missionsDone}/5  •  Doubloons ${game.save.doubloons.length}/12`,
+    CFG.viewWidth / 2,
+    560,
+    'bold 15px system-ui, sans-serif',
+    '#ffd94d',
+    'center',
+  );
+}
+
+function drawPauseScreen(game, ctx) {
+  overlay(ctx);
+  text(ctx, 'PAUSED', CFG.viewWidth / 2, 200, 'bold 56px system-ui, sans-serif', '#ffffff', 'center');
+  const lines = [
+    'WASD — move / drive      E — car      Q — weapon      F — punch',
+    'R — reload / race      Space — handbrake      M — mute',
+    '',
+    `Cash $${game.save.cash}   •   Missions ${game.save.missionsDone}/5   •   Doubloons ${game.save.doubloons.length}/12`,
+  ];
+  lines.forEach((line, i) => {
+    text(ctx, line, CFG.viewWidth / 2, 290 + i * 32, '17px system-ui, sans-serif', '#dddddd', 'center');
+  });
+  text(ctx, 'PRESS ESC TO RESUME', CFG.viewWidth / 2, 460, 'bold 22px system-ui, sans-serif', '#7cf29a', 'center');
+}
+
+function drawEndScreen(game, ctx, title, color) {
+  overlay(ctx);
+  text(ctx, title, CFG.viewWidth / 2, 220, 'bold 64px system-ui, sans-serif', color, 'center');
+  const lines = game.stateData ? game.stateData.lines : [];
+  lines.forEach((line, i) => {
+    text(ctx, line, CFG.viewWidth / 2, 300 + i * 34, 'bold 20px system-ui, sans-serif', '#ffffff', 'center');
+  });
+  text(ctx, 'PRESS ENTER TO CONTINUE', CFG.viewWidth / 2, 460, 'bold 22px system-ui, sans-serif', '#7cf29a', 'center');
+}
+
+function drawBriefing(game, ctx) {
+  overlay(ctx);
+  const def = game.stateData.def;
+  text(ctx, def.name.toUpperCase(), CFG.viewWidth / 2, 170, 'bold 48px system-ui, sans-serif', '#ffd94d', 'center');
+  text(ctx, `${def.giver}  •  Reward $${def.reward}`, CFG.viewWidth / 2, 220, 'bold 20px system-ui, sans-serif', '#ffffff', 'center');
+  def.brief.forEach((line, i) => {
+    text(ctx, line, CFG.viewWidth / 2, 290 + i * 30, 'italic 18px system-ui, sans-serif', '#dddddd', 'center');
+  });
+  text(ctx, 'PRESS ENTER TO START  •  ESC TO DECLINE', CFG.viewWidth / 2, 460, 'bold 22px system-ui, sans-serif', '#7cf29a', 'center');
+}
+
+export function drawHUD(game, ctx) {
+  if (game.state === 'start') {
+    drawStartScreen(game, ctx);
+    return;
+  }
+  drawPlayingHud(game, ctx);
+  if (game.state === 'paused') drawPauseScreen(game, ctx);
+  else if (game.state === 'busted') drawEndScreen(game, ctx, 'BUSTED', '#4d8dff');
+  else if (game.state === 'wasted') drawEndScreen(game, ctx, 'WASTED', '#ff4d4d');
+  else if (game.state === 'briefing') drawBriefing(game, ctx);
+  else if (game.state === 'complete') drawEndScreen(game, ctx, game.stateData.title, '#7cf29a');
+  else if (game.state === 'raceResult') drawEndScreen(game, ctx, game.stateData.title, '#2ecc71');
 }

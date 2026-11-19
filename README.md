@@ -1,89 +1,92 @@
-# Solmar City — an open-world crime game
+[![make.fun](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
+[![rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/bounty/gta6-01)
+[![reward](https://make.fun/badge/gta6-01/ahh955/Gta6-game/reward.svg)](https://make.fun/bounty/gta6-01)
 
-[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![reward](https://make.fun/badge/gta6-01/ahh955/Gta6-game/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+# Solmar City
 
-An original open-world crime game in the spirit of GTA 6, playable in a desktop browser from
-static files with no network request. Built by an AI agent for
-[make.fun](https://make.fun/r/xsff4jzh)'s "Make GTA 6" bounty.
+An original 2D top-down open-world crime game, built from scratch for the
+[Make GTA 6 bounty on make.fun](https://make.fun/bounty/gta6-01). Pure HTML5
+canvas, dependency-free, zero vendored code: every system below is the game's
+own source under `game/src/`.
 
-## The game
+## The city
 
-Solmar City is a sun-soaked coastal city. You are Dario Reyes, a wheelman with an empty
-wallet, running jobs for Mama Luz, a fixer who works out of a taco truck. Explore the city
-on foot and by car, steal cars, outrun the law, and work through five missions with a story.
+Solmar City is a sun-soaked coastal city: 8 avenues by 6 streets of drivable
+roads, a park with a pond, a beach on the east edge and a working harbour to
+the south. Traffic flows on the right-hand side of the road, pedestrians walk
+the sidewalks, and the sea sparkles along two edges of the map.
 
-**Systems:**
+## What you can do
 
-- **Open world** — a grid city with avenues, streets, blocks, a central park, a beach
-  promenade and a harbor district, all generated from a seed.
-- **Driving** — enter and exit cars, steal parked and traffic cars, arcade handling with
-  acceleration, braking, steering and handbrake slides.
-- **Traffic** — AI cars drive the road grid in their lanes, slow for the car ahead and stop
-  at jams; pedestrians stroll the sidewalks and flee from danger.
-- **Wanted level** — 0 to 5 stars. Stealing cars, hitting pedestrians and shooting near cops
-  raise the heat; laying low out of sight cools it. Foot cops chase and arrest you; police
-  cars chase and ram. Get caught and you are busted.
-- **Missions + story** — five jobs with briefings, objectives, waypoints on the minimap and
-  cash rewards: a car theft, a getaway drive under pursuit, a timed delivery, a turf-war
-  shootout, and a final heist in a gold sports car.
-- **Side activities** — street races and hidden collectibles. Three checkpoint races start
-  at glowing gates around the city (beach sprint, harbor loop, downtown dash): beat the
-  clock for cash, with a gold time for a bonus. Twelve golden doubloons are hidden across
-  the city — parks, piers, rooftops and alleys — each worth cash, with a big bonus for
-  finding them all.
-- **Combat** — pistol with aim, ammo and reload, punches, rival gang members who hunt and
-  shoot back, health and ammo pickups.
-- **HUD** — live canvas minimap (player, traffic, police, mission markers, race gates and
-  doubloons, north), money, health, wanted stars, objective banner, speedometer and
-  dialogue box.
-- **Start, pause and save** — title screen, pause menu, and progress (money, missions,
-  races, doubloons, position) saved to localStorage.
-- **Sound** — everything synthesized live with WebAudio: engine hum, police sirens,
-  gunshots, pickups, mission jingles and a slow golden-hour music loop. No audio files.
-
-Everything is original: the city, characters, vehicles, names, story, art and music are the
-game's own. Nothing comes from Rockstar Games or any other commercial game.
+- **Drive and steal cars** — walk up to any car and press E. Parked cars are
+  free unless a cop watches you take one; jacking a moving car always draws
+  heat. Arcade handling with a handbrake (Space) for slides and tire smoke.
+- **Wanted system (0–5 stars)** — stealing, hitting pedestrians and shooting
+  near the police raise your wanted level. Foot cops chase and punch you;
+  police cars hunt you across the road grid and ram. Get caught flat-footed
+  and the bust meter fills: BUSTED costs a $200 fine. Die and the hospital
+  charges $100.
+- **5 story missions** — work for Dario Reyes and Mama Luz against the Los
+  Tiburones gang: steal the gold Comet, run Mama Luz's spices against the
+  clock, take the park back from six gang members, survive three stars for a
+  minute, and pull the harbour heist. Rewards run $500 to $2,500.
+- **3 street races** — Beach Sprint ($300), Downtown Loop ($450) and Harbor
+  Run ($600). Press R in a car at a race gate; beat the gold time for a $200
+  bonus. Best times are saved.
+- **12 golden doubloons** — hidden around the park, beach, harbour, alleys
+  and plaza. $100 each, $1,000 bonus for all twelve.
+- **Combat** — a pistol with a 12-round magazine (click to shoot, R to
+  reload), fists (Q to switch, F to punch), and gang members who shoot back.
+- **Progress that saves** — cash, missions, doubloons, race best times and
+  the mute setting persist in localStorage.
+- **Sound** — every effect and the music loop are synthesized with WebAudio.
+  No audio files.
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
-| W A S D / arrows | Move on foot, drive (W accelerate, S brake/reverse, A/D steer) |
-| Shift | Sprint on foot, handbrake while driving |
-| Mouse | Aim |
-| Click | Shoot |
-| E | Enter / exit car |
+| WASD / Arrows | Move on foot, drive |
+| Mouse | Aim (click to shoot) |
+| E | Steal / enter / exit a car, talk to a mission giver |
+| Q | Pistol or fists |
 | F | Punch |
-| R | Start a street race at a race gate |
-| P / Esc | Pause |
+| R | Reload — or start a race at a race gate |
+| Space | Handbrake |
+| Shift | Sprint |
 | M | Mute |
-| Enter / Space | Start, continue dialogue |
+| Esc / P | Pause |
 
-## Run it
+## Play it
 
 ```sh
 node serve.ts
 ```
 
-Then open http://localhost:8080 in desktop Chrome. No build step, no dependencies.
+Then open http://localhost:8080 in desktop Chrome. The game is static files
+under `game/` with no build step and no network request.
+
+## Screenshots
+
+The four screenshots in `screenshots/` are real renders of this game's own
+code, taken in headless Chromium from the `?shot=` poses defined in
+`game/src/shots.js` (see `shots.json` for the list). The chase shot nudges
+two police cars into frame behind the player, and the race shot starts the
+Beach Sprint timer; everything else in every shot is the game playing itself.
 
 ## Layout
 
-- `game/index.html` — the page; loads the game from `game/src/`.
-- `game/src/` — the game's own source, one job per file: `config.js` (tuning),
-  `random.js` (seeded RNG), `input.js`, `world.js` (city generation), `vehicles.js`
-  (car physics), `traffic.js`, `pedestrians.js`, `player.js`, `combat.js`, `police.js`
-  (wanted level), `missions.js`, `story.js`, `races.js` (street races), `collectibles.js`
-  (hidden doubloons), `audio.js`, `save.js`, `hud.js` (HUD and minimap), `render.js`,
-  `shots.js` (screenshot poses), `game.js` (state and the step), `main.js` (boot and
-  the loop).
-- `main.ts` — the entry program: copies `game/` and `screenshots/` to `/output` and writes
-  `dossier.json` with the kit's `vendor/makefun-game.ts`.
-- `screenshots/` — four real renders of the game: a street race gate, driving, a police
-  chase and collecting doubloons.
+- `main.ts` — the entrypoint: copies `game/` and `screenshots/` to the
+  output directory and writes `dossier.json` with the kit's `buildDossier`.
+- `game/index.html` — the page: one canvas, one module script.
+- `game/src/` — one file per system: `world` (city layout), `traffic`
+  (cars and pedestrians), `police` (wanted level and pursuit), `player`,
+  `combat`, `missions`, `races`, `collectibles`, `render` (scene),
+  `hud` (panels, minimap, menus), `audio` (synthesized sound), `shots`
+  (screenshot poses), plus `config`, `random`, `input`, `save`, `main`.
+- `vendor/makefun-game.ts` — the kit's dossier library, copied unchanged.
+- `serve.ts` — a tiny static server for local play.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT — see `LICENSE`.

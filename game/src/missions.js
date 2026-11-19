@@ -1,264 +1,272 @@
-// Missions: five jobs with objectives, waypoints on the minimap, timers, and cash rewards.
-// When no mission is active a yellow marker waits at the next job's start; walking or driving
-// into it opens the briefing, and the job begins. Completing a job pays and unlocks the next.
-import { MISSION_REWARDS } from './config.js';
-import { MISSION_BRIEFINGS, MISSION_COMPLETE_LINES, MISSION_HINTS, MISSION_NAMES } from './story.js';
+// Solmar City — five story missions with Dario Reyes, Mama Luz and the
+// Los Tiburones gang. Missions unlock one after another; each pays cash on
+// completion and saves its progress.
+
+import { CFG } from './config.js';
+import { setWanted } from './police.js';
 import { spawnEnemies } from './combat.js';
-import { createCar } from './vehicles.js';
+import { makeCar } from './traffic.js';
 
-export const MISSION_COUNT = 5;
-
-export function createMissionState() {
+// Every mission place, derived from the city layout.
+export function missionSpots(world) {
   return {
-    index: 0,
-    active: false,
-    started: false,
-    stage: 0,
-    checkpoint: 0,
-    timer: 0,
-    waypoint: null,
-    objective: '',
-    briefing: null,
-    briefingIndex: 0,
-    complete: false,
-    failed: false,
-    failTimer: 0,
-    car: null,
-    checkpoints: [],
-    enemiesLeft: 0,
+    dario: { x: world.avenues[2], y: world.streets[1] },
+    goldCar: { x: world.avenues[4] + 40, y: world.streets[0] + 120 },
+    garage: { x: world.avenues[2], y: world.streets[2] },
+    diner: { x: world.avenues[1], y: world.streets[3] },
+    package: { x: world.piers[0].x + 30, y: world.piers[0].y + 120 },
+    parkGate: { x: world.park.cx, y: world.park.y + world.park.h + 46 },
+    parkCentre: { x: world.park.cx, y: world.park.cy },
+    safehouse: { x: world.avenues[6], y: world.streets[2] },
+    warehouse: { x: world.avenues[5], y: world.streets[5] },
+    truck: { x: world.piers[1].x + 30, y: CFG.harborY + 70 },
   };
 }
 
-/** Where the next job's start marker waits. */
-export function missionStartPoint(state) {
-  const c = state.city;
-  switch (state.mission.index) {
-    case 0:
-      return { x: 1000, y: 900 };
-    case 1:
-      return { x: 1600, y: 1900 };
-    case 2:
-      return { x: 2800, y: 900 };
-    case 3:
-      return { x: c.plaza.x, y: c.plaza.y - 260 };
-    case 4:
-      return { x: c.harborGate.x - 260, y: c.harborGate.y - 120 };
-    default:
-      return null;
-  }
+export const MISSION_DEFS = [
+  {
+    id: 0,
+    name: 'First Wheels',
+    giver: 'Dario Reyes',
+    reward: 500,
+    letter: 'D',
+    brief: [
+      'Dario Reyes: "Listen, kid. A gold Comet is sitting up on Palm Avenue,',
+      'keys in it, owner nowhere. Bring it to my garage and I will make it',
+      'worth your while. Five hundred, no questions."',
+    ],
+    startKey: 'dario',
+  },
+  {
+    id: 1,
+    name: "Mama Luz's Errand",
+    giver: 'Mama Luz',
+    reward: 800,
+    letter: 'L',
+    brief: [
+      'Mama Luz: "My spice shipment is waiting at the harbour, mijo, and my',
+      'lunch crowd arrives in ninety seconds. Pick it up and bring it to the',
+      'diner. Drive like your abuela is watching. She is."',
+    ],
+    startKey: 'diner',
+  },
+  {
+    id: 2,
+    name: 'Turf War',
+    giver: 'Dario Reyes',
+    reward: 1200,
+    letter: 'D',
+    brief: [
+      'Dario Reyes: "Los Tiburones took the park. Six of them, armed, acting',
+      'like they own Solmar. Take the park back and the whole city hears',
+      'about it. Twelve hundred. Do not miss."',
+    ],
+    startKey: 'parkGate',
+  },
+  {
+    id: 3,
+    name: 'The Getaway',
+    giver: 'Mama Luz',
+    reward: 1800,
+    letter: 'L',
+    brief: [
+      'Mama Luz: "The police know your face now, mijo. Three stars, and they',
+      'will not stop. Stay free for one minute, then come home to the',
+      'safehouse. Eighteen hundred, and I cook for a week."',
+    ],
+    startKey: 'safehouse',
+  },
+  {
+    id: 4,
+    name: 'Harbor Heist',
+    giver: 'Dario Reyes',
+    reward: 2500,
+    letter: 'D',
+    brief: [
+      'Dario Reyes: "Last job, biggest pay. A Tiburones truck full of cargo',
+      'is sitting at the harbour. Take it, lose the heat as best you can,',
+      'and bring it to my warehouse. Twenty-five hundred. You are a legend',
+      'after this, kid."',
+    ],
+    startKey: 'warehouse',
+  },
+];
+
+export function createMissions() {
+  return {
+    active: null, // { def, step, timer, targetCar, enemiesLeft }
+    spots: null, // filled by main.js once the world exists
+  };
 }
 
-function setObjective(state, text, waypoint) {
-  state.mission.objective = text;
-  state.mission.waypoint = waypoint || null;
+export function nextMissionIndex(game) {
+  return game.save.missionsDone;
 }
 
-function beginMission(state) {
-  const m = state.mission;
-  m.active = true;
-  m.started = true;
-  m.stage = 0;
-  m.checkpoint = 0;
-  m.failed = false;
-  m.complete = false;
-  m.briefing = MISSION_BRIEFINGS[m.index];
-  m.briefingIndex = 0;
-  state.dialogue = { lines: m.briefing, index: 0, timer: 0 };
-  if (m.index === 1) {
-    // The getaway sedan waits at the job's start.
-    const p = missionStartPoint(state);
-    const car = createCar('sedan', p.x + 40, p.y + 30, 0, 'parked');
-    car.color = '#4a7dd8';
-    car.getawayCar = true;
-    state.cars.push(car);
-    m.car = car;
-    m.checkpoints = [
-      { x: 2200, y: 900 },
-      { x: 3400, y: 1900 },
-      { x: 3400, y: 400 },
-    ];
-    setObjective(state, 'Get in the blue sedan', { x: car.x, y: car.y });
-  } else if (m.index === 2) {
-    m.timer = 150;
-    m.checkpoints = [
-      { x: 400, y: 2400 },
-      { x: 4000, y: 2900 },
-      { x: 2200, y: 400 },
-    ];
-    setObjective(state, 'Deliver to drop 1 of 3', m.checkpoints[0]);
-  } else if (m.index === 0) {
-    setObjective(state, 'Steal a car', null);
-  } else if (m.index === 3) {
-    setObjective(state, 'Go to the plaza', { x: state.city.plaza.x, y: state.city.plaza.y });
-  } else if (m.index === 4) {
-    const prize = state.cars.find((c) => c.prizeCar);
-    setObjective(state, 'Steal the gold sports car', prize ? { x: prize.x, y: prize.y } : { x: state.city.harborGate.x, y: state.city.harborGate.y });
-  }
-  state.events.push({ type: 'missionStart', name: MISSION_NAMES[m.index] });
+export function nextMissionDef(game) {
+  const idx = nextMissionIndex(game);
+  if (idx >= MISSION_DEFS.length) return null;
+  return MISSION_DEFS[idx];
 }
 
-function completeMission(state) {
-  const m = state.mission;
-  m.active = false;
-  m.complete = true;
-  state.player.money += MISSION_REWARDS[m.index];
-  state.events.push({ type: 'missionComplete', text: MISSION_COMPLETE_LINES[m.index], reward: MISSION_REWARDS[m.index] });
-  m.index += 1;
-  m.stage = 0;
-  m.checkpoint = 0;
-  m.waypoint = null;
-  m.objective = '';
-  m.car = null;
-  if (m.index >= MISSION_COUNT) {
-    state.events.push({ type: 'gameComplete' });
-  }
-}
-
-function failMission(state, reason) {
-  const m = state.mission;
-  m.active = false;
-  m.failed = true;
-  m.failTimer = 3;
-  m.objective = '';
-  m.waypoint = null;
-  state.events.push({ type: 'missionFailed', text: reason });
-  // The getaway car stays where it is; the next attempt starts fresh.
-  m.car = null;
-}
-
-function near(x1, y1, x2, y2, dist) {
-  return Math.hypot(x1 - x2, y1 - y2) < dist;
-}
-
-function updateMission0(state) {
-  const m = state.mission;
-  const player = state.player;
-  if (m.stage === 0) {
-    if (player.car) {
-      m.stage = 1;
-      setObjective(state, 'Drive to the garage', { x: state.city.garage.x, y: state.city.garage.y });
+// Where the player goes to start the next mission (or the active objective).
+export function currentObjective(game) {
+  const missions = game.missions;
+  if (missions.active) {
+    const a = missions.active;
+    const spots = missions.spots;
+    if (a.def.id === 0) {
+      if (a.step === 0) return { x: spots.goldCar.x, y: spots.goldCar.y, label: 'Steal the gold Comet' };
+      return { x: spots.garage.x, y: spots.garage.y, label: 'Deliver the Comet to the garage' };
     }
-  } else if (near(player.x, player.y, state.city.garage.x, state.city.garage.y, 110)) {
-    completeMission(state);
+    if (a.def.id === 1) {
+      if (a.step === 0) return { x: spots.package.x, y: spots.package.y, label: 'Pick up the spice shipment' };
+      return { x: spots.diner.x, y: spots.diner.y, label: `Deliver to Mama Luz (${Math.ceil(a.timer)}s)` };
+    }
+    if (a.def.id === 2) {
+      return { x: spots.parkCentre.x, y: spots.parkCentre.y, label: `Clear the park (${a.enemiesLeft} left)` };
+    }
+    if (a.def.id === 3) {
+      if (a.step === 0) return { x: game.player.x, y: game.player.y, label: `Stay free (${Math.ceil(a.timer)}s)` };
+      return { x: spots.safehouse.x, y: spots.safehouse.y, label: 'Reach the safehouse' };
+    }
+    if (a.def.id === 4) {
+      if (a.step === 0) return { x: spots.truck.x, y: spots.truck.y, label: 'Steal the Tiburones truck' };
+      return { x: spots.warehouse.x, y: spots.warehouse.y, label: 'Deliver the truck to the warehouse' };
+    }
   }
+  const def = nextMissionDef(game);
+  if (!def) return null;
+  const spot = missions.spots[def.startKey];
+  return { x: spot.x, y: spot.y, label: `See ${def.giver}: ${def.name}` };
 }
 
-function updateMission1(state) {
-  const m = state.mission;
-  const player = state.player;
-  if (m.stage === 0) {
-    if (player.car === m.car) {
-      m.stage = 1;
-      m.checkpoint = 0;
-      state.wanted.points = Math.max(state.wanted.points, 250);
-      setObjective(state, 'Reach checkpoint 1 of 3', m.checkpoints[0]);
-    }
-    return;
+export function tryStartMission(game) {
+  if (game.missions.active) return null;
+  const def = nextMissionDef(game);
+  if (!def) return null;
+  const spot = game.missions.spots[def.startKey];
+  if (Math.hypot(game.player.x - spot.x, game.player.y - spot.y) > 70) return null;
+  return def;
+}
+
+function spawnMissionCar(game, spot, color, type) {
+  const car = makeCar(game.nextCarId, spot.x, spot.y, 0, color, type);
+  game.nextCarId += 1;
+  car.parked = true;
+  car.missionCar = true;
+  game.cars.push(car);
+  return car;
+}
+
+export function startMission(game, def) {
+  const spots = game.missions.spots;
+  const active = { def, step: 0, timer: 0, targetCar: null, enemiesLeft: 0 };
+  if (def.id === 0) {
+    active.targetCar = spawnMissionCar(game, spots.goldCar, '#e8c53a', 'sport');
+  } else if (def.id === 2) {
+    spawnEnemies(game, spots.parkCentre.x, spots.parkCentre.y, 6, '#2e8f83', true);
+    active.enemiesLeft = 6;
+  } else if (def.id === 3) {
+    setWanted(game, 3, true);
+    active.timer = 60;
+  } else if (def.id === 4) {
+    active.targetCar = spawnMissionCar(game, spots.truck, '#5b6ee8', 'truck');
   }
-  const cp = m.checkpoints[m.checkpoint];
-  if (cp && near(player.x, player.y, cp.x, cp.y, 120)) {
-    m.checkpoint += 1;
-    state.events.push({ type: 'checkpoint', text: `Checkpoint ${m.checkpoint} of 3` });
-    if (m.checkpoint >= m.checkpoints.length) {
-      m.stage = 2;
-      setObjective(state, 'Reach the safehouse', { x: state.city.safehouse.x, y: state.city.safehouse.y });
+  game.missions.active = active;
+  game.message(`Mission started: ${def.name} ($${def.reward})`);
+}
+
+function completeMission(game) {
+  const active = game.missions.active;
+  const def = active.def;
+  game.missions.active = null;
+  game.save.cash += def.reward;
+  game.save.totalEarned += def.reward;
+  game.save.missionsDone = Math.max(game.save.missionsDone, def.id + 1);
+  game.audio.missionDone();
+  game.state = 'complete';
+  game.stateData = {
+    title: 'MISSION COMPLETE',
+    lines: [def.name, `Reward: $${def.reward}`, game.save.missionsDone >= MISSION_DEFS.length ? 'All missions complete. Solmar City is yours!' : `Next: ${MISSION_DEFS[game.save.missionsDone].name}`],
+  };
+}
+
+export function failMission(game, reason) {
+  const active = game.missions.active;
+  if (!active) return;
+  if (active.def.id === 3) setWanted(game, game.police.wanted, false);
+  if (active.targetCar) {
+    game.cars = game.cars.filter((c) => c !== active.targetCar);
+  }
+  if (active.def.id === 2) {
+    // Only the mission's own gang members count; the harbour thugs are
+    // free-roam and never block the objective.
+    game.combat.enemies = game.combat.enemies.filter((e) => !e.mission || e.state === 'down');
+  }
+  game.missions.active = null;
+  game.message(`Mission failed: ${reason}`);
+}
+
+export function updateMissions(game, dt) {
+  const active = game.missions.active;
+  if (!active) return;
+  const spots = game.missions.spots;
+  const player = game.player;
+
+  if (active.def.id === 0) {
+    if (active.step === 0) {
+      if (!player.onFoot && player.car === active.targetCar) {
+        active.step = 1;
+        game.message('Got the Comet! Take it to Dario\'s garage.');
+      }
+    } else if (!player.onFoot && player.car === active.targetCar) {
+      if (Math.hypot(player.x - spots.garage.x, player.y - spots.garage.y) < 70) {
+        completeMission(game);
+      }
+    }
+  } else if (active.def.id === 1) {
+    if (active.step === 0) {
+      if (Math.hypot(player.x - spots.package.x, player.y - spots.package.y) < 46) {
+        active.step = 1;
+        active.timer = 90;
+        game.message('Got the spices! 90 seconds to the diner!');
+        game.audio.checkpoint();
+      }
     } else {
-      setObjective(state, `Reach checkpoint ${m.checkpoint + 1} of 3`, m.checkpoints[m.checkpoint]);
+      active.timer -= dt;
+      if (active.timer <= 0) {
+        failMission(game, 'the lunch crowd came and went');
+      } else if (Math.hypot(player.x - spots.diner.x, player.y - spots.diner.y) < 70) {
+        completeMission(game);
+      }
+    }
+  } else if (active.def.id === 2) {
+    const alive = game.combat.enemies.filter((e) => e.state === 'alive' && e.mission).length;
+    active.enemiesLeft = alive;
+    if (alive === 0) completeMission(game);
+  } else if (active.def.id === 3) {
+    if (active.step === 0) {
+      active.timer -= dt;
+      if (active.timer <= 0) {
+        active.step = 1;
+        setWanted(game, game.police.wanted, false);
+        game.message('You outlasted them! Get to the safehouse.');
+      }
+    } else if (Math.hypot(player.x - spots.safehouse.x, player.y - spots.safehouse.y) < 70) {
+      completeMission(game);
+    }
+  } else if (active.def.id === 4) {
+    if (active.step === 0) {
+      if (!player.onFoot && player.car === active.targetCar) {
+        active.step = 1;
+        setWanted(game, 2, false);
+        game.message('You have the truck! The police are on to you!');
+      }
+    } else if (!player.onFoot && player.car === active.targetCar) {
+      if (Math.hypot(player.x - spots.warehouse.x, player.y - spots.warehouse.y) < 70) {
+        completeMission(game);
+      }
     }
   }
-  if (m.stage === 2 && near(player.x, player.y, state.city.safehouse.x, state.city.safehouse.y, 130)) {
-    completeMission(state);
-  }
-}
-
-function updateMission2(state, dt) {
-  const m = state.mission;
-  const player = state.player;
-  m.timer -= dt;
-  if (m.timer <= 0) {
-    failMission(state, 'Too slow — the clients cancelled.');
-    return;
-  }
-  const cp = m.checkpoints[m.checkpoint];
-  if (cp && near(player.x, player.y, cp.x, cp.y, 110)) {
-    m.checkpoint += 1;
-    state.events.push({ type: 'checkpoint', text: `Drop ${m.checkpoint} of 3 done` });
-    if (m.checkpoint >= m.checkpoints.length) completeMission(state);
-    else setObjective(state, `Deliver to drop ${m.checkpoint + 1} of 3`, m.checkpoints[m.checkpoint]);
-  }
-}
-
-function updateMission3(state) {
-  const m = state.mission;
-  const player = state.player;
-  if (m.stage === 0) {
-    if (near(player.x, player.y, state.city.plaza.x, state.city.plaza.y, 260)) {
-      m.stage = 1;
-      spawnEnemies(state, state.city.plaza.x, state.city.plaza.y, 6);
-      m.enemiesLeft = 6;
-      setObjective(state, 'Defeat Los Tiburones: 6 left', { x: state.city.plaza.x, y: state.city.plaza.y });
-      state.events.push({ type: 'combatStart' });
-    }
-    return;
-  }
-  const alive = state.enemies.filter((e) => e.state !== 'dead').length;
-  m.enemiesLeft = alive;
-  setObjective(state, `Defeat Los Tiburones: ${alive} left`, { x: state.city.plaza.x, y: state.city.plaza.y });
-  if (alive === 0) completeMission(state);
-}
-
-function updateMission4(state) {
-  const m = state.mission;
-  const player = state.player;
-  const prize = state.cars.find((c) => c.prizeCar);
-  if (m.stage === 0) {
-    if (player.car === prize) {
-      m.stage = 1;
-      state.wanted.points = Math.max(state.wanted.points, 700);
-      setObjective(state, 'Lose the cops, then reach the garage', { x: state.city.garage.x, y: state.city.garage.y });
-    }
-    return;
-  }
-  if (state.wanted.level === 0 && near(player.x, player.y, state.city.garage.x, state.city.garage.y, 130)) {
-    completeMission(state);
-  } else if (state.wanted.level === 0) {
-    setObjective(state, 'Heat is off — reach the garage', { x: state.city.garage.x, y: state.city.garage.y });
-  } else {
-    setObjective(state, `Lose the cops (${state.wanted.level} stars), then reach the garage`, { x: state.city.garage.x, y: state.city.garage.y });
-  }
-}
-
-export function updateMissions(state, dt) {
-  const m = state.mission;
-  if (m.failed) {
-    m.failTimer -= dt;
-    if (m.failTimer <= 0) m.failed = false;
-    return;
-  }
-  if (!m.active) {
-    // The start marker waits: walk or drive into it to begin the next job. Never mid-race:
-    // a briefing would pause the world and steal the race.
-    if (m.index >= MISSION_COUNT) return;
-    if (state.race && state.race.active) return;
-    const start = missionStartPoint(state);
-    if (start && near(state.player.x, state.player.y, start.x, start.y, 90)) beginMission(state);
-    return;
-  }
-  if (state.dialogue) return; // the briefing pauses the job until it is read
-  if (m.index === 0) updateMission0(state);
-  else if (m.index === 1) updateMission1(state);
-  else if (m.index === 2) updateMission2(state, dt);
-  else if (m.index === 3) updateMission3(state);
-  else if (m.index === 4) updateMission4(state);
-}
-
-/** Called when the player is busted or wasted mid-mission. */
-export function failActiveMission(state, reason) {
-  if (state.mission.active) failMission(state, reason);
-}
-
-export function missionHint(state) {
-  if (state.mission.index >= MISSION_COUNT) return 'All jobs done — Solmar is yours. Free roam!';
-  if (state.mission.active) return MISSION_HINTS[state.mission.index];
-  return `Next job: ${MISSION_NAMES[state.mission.index]} — reach the yellow M marker.`;
 }

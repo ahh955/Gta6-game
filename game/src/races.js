@@ -1,167 +1,146 @@
-// Street races: three checkpoint races with a start gate each, a clock, cash for finishing
-// and a bonus for beating the gold time. Press R near a gate (in a car) to start; the race
-// pays when the last checkpoint is crossed. Best times and wins are saved.
+// Solmar City — three checkpoint street races. Press R in a car near a
+// race gate to start; drive the rings in order and beat the gold time for
+// a bonus. Best times are saved.
+
+import { CFG } from './config.js';
+
 export const RACES = [
   {
+    id: 'beach',
     name: 'Beach Sprint',
-    start: { x: 400, y: 2900 },
-    checkpoints: [
-      { x: 1600, y: 2900 },
-      { x: 2800, y: 2900 },
-      { x: 4400, y: 2900 },
-    ],
     reward: 300,
-    goldTime: 18,
-    goldBonus: 200,
-    hint: 'Flat out along the beach road — three checkpoints, no turns.',
-  },
-  {
-    name: 'Harbor Loop',
-    start: { x: 4000, y: 2900 },
+    goldTime: 26,
+    gate: { x: 2200, y: 100 },
     checkpoints: [
-      { x: 4400, y: 2900 },
-      { x: 4400, y: 1400 },
-      { x: 4000, y: 1400 },
-      { x: 4000, y: 2900 },
+      { x: 2200, y: 400 },
+      { x: 2200, y: 700 },
+      { x: 2200, y: 1000 },
+      { x: 2200, y: 1300 },
+      { x: 2200, y: 1600 },
+      { x: 1900, y: 1600 },
+      { x: 1600, y: 1600 },
+      { x: 1300, y: 1600 },
+      { x: 1000, y: 1600 },
+      { x: 700, y: 1600 },
+      { x: 400, y: 1600 },
+      { x: 100, y: 1600 },
     ],
-    reward: 400,
-    goldTime: 25,
-    goldBonus: 250,
-    hint: 'A loop around the harbor blocks — four checkpoints, three sharp turns.',
   },
   {
-    name: 'Downtown Dash',
-    start: { x: 1000, y: 400 },
+    id: 'downtown',
+    name: 'Downtown Loop',
+    reward: 450,
+    goldTime: 22,
+    gate: { x: 1000, y: 100 },
     checkpoints: [
-      { x: 3400, y: 400 },
-      { x: 3400, y: 2400 },
-      { x: 1000, y: 2400 },
+      { x: 1300, y: 100 },
+      { x: 1600, y: 100 },
+      { x: 1900, y: 100 },
+      { x: 1900, y: 400 },
+      { x: 1900, y: 700 },
+      { x: 1900, y: 1000 },
+      { x: 1600, y: 1000 },
+      { x: 1300, y: 1000 },
+      { x: 1000, y: 1000 },
+      { x: 1000, y: 700 },
       { x: 1000, y: 400 },
+      { x: 1000, y: 100 },
     ],
+  },
+  {
+    id: 'harbor',
+    name: 'Harbor Run',
     reward: 600,
-    goldTime: 45,
-    goldBonus: 400,
-    hint: 'The big one: a full loop of downtown — four checkpoints, traffic everywhere.',
+    goldTime: 25,
+    gate: { x: 100, y: 1600 },
+    checkpoints: [
+      { x: 400, y: 1600 },
+      { x: 700, y: 1600 },
+      { x: 1000, y: 1600 },
+      { x: 1300, y: 1600 },
+      { x: 1600, y: 1600 },
+      { x: 1900, y: 1600 },
+      { x: 2200, y: 1600 },
+      { x: 2200, y: 1300 },
+      { x: 2200, y: 1000 },
+      { x: 2200, y: 700 },
+      { x: 1900, y: 700 },
+      { x: 1600, y: 700 },
+    ],
   },
 ];
 
-const GATE_RADIUS = 110;
-const CHECKPOINT_RADIUS = 120;
-
-export function createRaceState() {
+export function createRaces() {
   return {
-    active: false,
-    index: -1,
-    checkpoint: 0,
-    timer: 0,
-    bestTimes: [null, null, null],
-    completed: [false, false, false],
+    active: null, // { def, checkpoint, time, countdown }
   };
 }
 
-/** The race whose start gate the player is standing at, or -1. */
-export function raceGateNear(state) {
-  const player = state.player;
-  for (let i = 0; i < RACES.length; i += 1) {
-    const g = RACES[i].start;
-    if (Math.hypot(player.x - g.x, player.y - g.y) < GATE_RADIUS) return i;
+// The race gate the player is standing at (in a car), if any.
+export function raceAtGate(game) {
+  if (game.player.onFoot || game.races.active) return null;
+  for (const race of RACES) {
+    if (Math.hypot(game.player.x - race.gate.x, game.player.y - race.gate.y) < 80) {
+      return race;
+    }
   }
-  return -1;
+  return null;
 }
 
-function burst(state, x, y, color, count) {
-  for (let i = 0; i < count; i += 1) {
-    const a = (i / count) * Math.PI * 2;
-    state.particles.push({
-      x, y,
-      vx: Math.cos(a) * 140,
-      vy: Math.sin(a) * 140,
-      life: 0.7, maxLife: 0.7, color, size: 5, kind: 'spark',
-    });
-  }
+export function startRace(game, race) {
+  game.races.active = { def: race, checkpoint: 0, time: 0, countdown: 3.2 };
+  game.audio.raceStart();
+  game.message(`${race.name}: 3... 2... 1... GO!`);
 }
 
-function startRace(state, index) {
-  const r = state.race;
-  const def = RACES[index];
-  r.active = true;
-  r.index = index;
-  r.checkpoint = 0;
-  r.timer = 0;
-  state.events.push({ type: 'raceStart', name: def.name, hint: def.hint });
-  burst(state, def.start.x, def.start.y, '#3fd2ff', 16);
+function finishRace(game) {
+  const active = game.races.active;
+  const def = active.def;
+  const time = active.time;
+  game.races.active = null;
+  const gold = time <= def.goldTime;
+  const reward = def.reward + (gold ? CFG.raceGoldBonus : 0);
+  game.save.cash += reward;
+  game.save.totalEarned += reward;
+  const prevBest = game.save.raceBest[def.id];
+  const isBest = !prevBest || time < prevBest;
+  if (isBest) game.save.raceBest[def.id] = Math.round(time * 100) / 100;
+  game.audio.missionDone();
+  game.state = 'raceResult';
+  game.stateData = {
+    title: 'RACE FINISHED',
+    lines: [
+      `${def.name} — ${time.toFixed(2)}s`,
+      `Reward: $${reward}${gold ? ' (gold time bonus!)' : ''}`,
+      isBest ? 'New best time!' : `Best: ${game.save.raceBest[def.id].toFixed(2)}s`,
+    ],
+  };
 }
 
-/** The R key: start the race at the gate under the player, if there is one. */
-export function tryStartRace(state) {
-  const r = state.race;
-  if (r.active || state.mission.active || state.dialogue) return;
-  const index = raceGateNear(state);
-  if (index === -1) return;
-  if (!state.player.car) {
-    state.events.push({ type: 'raceNeedCar' });
+export function updateRaces(game, dt) {
+  const active = game.races.active;
+  if (!active) return;
+  if (active.countdown > 0) {
+    active.countdown -= dt;
+    // Hold the car still during the countdown.
+    if (game.player.car) {
+      game.player.car.speed = 0;
+      game.player.car.vx = 0;
+      game.player.car.vy = 0;
+    }
     return;
   }
-  startRace(state, index);
-}
-
-function finishRace(state) {
-  const r = state.race;
-  const def = RACES[r.index];
-  const time = r.timer;
-  const gold = time <= def.goldTime;
-  const reward = def.reward + (gold ? def.goldBonus : 0);
-  state.player.money += reward;
-  r.completed[r.index] = true;
-  if (r.bestTimes[r.index] === null || time < r.bestTimes[r.index]) r.bestTimes[r.index] = time;
-  burst(state, state.player.x, state.player.y, '#ffd94a', 24);
-  state.events.push({
-    type: 'raceComplete',
-    text: gold
-      ? `${def.name} in ${time.toFixed(1)}s — GOLD TIME! +$${reward}`
-      : `${def.name} in ${time.toFixed(1)}s — +$${reward}`,
-    reward,
-  });
-  r.active = false;
-  r.index = -1;
-  r.checkpoint = 0;
-  r.timer = 0;
-}
-
-/** Called when the player is busted or wasted mid-race: the race is over, no payout. */
-export function cancelRace(state) {
-  const r = state.race;
-  r.active = false;
-  r.index = -1;
-  r.checkpoint = 0;
-  r.timer = 0;
-}
-
-export function updateRaces(state, dt, actions) {
-  if (actions && actions.race) tryStartRace(state);
-  const r = state.race;
-  if (!r.active) return;
-  r.timer += dt;
-  const def = RACES[r.index];
-  const cp = def.checkpoints[r.checkpoint];
-  if (cp && Math.hypot(state.player.x - cp.x, state.player.y - cp.y) < CHECKPOINT_RADIUS) {
-    r.checkpoint += 1;
-    burst(state, cp.x, cp.y, '#3fd2ff', 12);
-    if (r.checkpoint >= def.checkpoints.length) finishRace(state);
-    else state.events.push({ type: 'checkpoint', text: `Checkpoint ${r.checkpoint} of ${def.checkpoints.length}` });
+  active.time += dt;
+  const cp = active.def.checkpoints[active.checkpoint];
+  if (!cp) {
+    finishRace(game);
+    return;
   }
-}
-
-/** The next checkpoint's position while a race runs, for the HUD and the minimap. */
-export function raceWaypoint(state) {
-  const r = state.race;
-  if (!r.active) return null;
-  return RACES[r.index].checkpoints[r.checkpoint] || null;
-}
-
-export function raceStatusText(state) {
-  const r = state.race;
-  if (!r.active) return '';
-  const def = RACES[r.index];
-  return `${def.name} — ${r.checkpoint}/${def.checkpoints.length} checkpoints`;
+  if (Math.hypot(game.player.x - cp.x, game.player.y - cp.y) < 58) {
+    active.checkpoint += 1;
+    game.audio.checkpoint();
+    if (active.checkpoint >= active.def.checkpoints.length) {
+      finishRace(game);
+    }
+  }
 }

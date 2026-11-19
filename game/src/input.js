@@ -1,142 +1,78 @@
-// Keyboard and mouse input. Held keys give a move/steer vector; one-shot presses (start,
-// pause, enter car, punch, mute) are queued as bit flags and taken once by the loop, so a press
-// between two frames is never lost and never counted twice. The mouse aims and fires.
+// Solmar City — keyboard and mouse input. Tracks held keys, single-press
+// edges (consumed once per frame) and the mouse position in canvas pixels.
 
-export const ACTION_CONFIRM = 1;
-export const ACTION_PAUSE = 2;
-export const ACTION_ENTER = 4;
-export const ACTION_PUNCH = 8;
-export const ACTION_MUTE = 16;
-export const ACTION_ADVANCE = 32;
-export const ACTION_RACE = 64;
+export function createInput(canvas) {
+  const input = {
+    keys: new Set(),
+    justPressed: new Set(),
+    mouseX: 0,
+    mouseY: 0,
+    mouseDown: false,
+    mouseClicked: false,
+    // The key that was pressed most recently (for the start screen).
+    lastKey: null,
+  };
 
-const UP = new Set(['ArrowUp', 'KeyW']);
-const DOWN = new Set(['ArrowDown', 'KeyS']);
-const LEFT = new Set(['ArrowLeft', 'KeyA']);
-const RIGHT = new Set(['ArrowRight', 'KeyD']);
-const CONFIRM = new Set(['Space', 'Enter']);
-const PAUSE = new Set(['KeyP', 'Escape']);
-const ENTER = new Set(['KeyE']);
-const PUNCH = new Set(['KeyF']);
-const MUTE = new Set(['KeyM']);
-const RACE = new Set(['KeyR']);
-
-export function createInput(target) {
-  const held = { up: false, down: false, left: false, right: false, sprint: false, brake: false };
-  let actions = 0;
-  let firing = false;
-  const mouse = { x: 640, y: 360, inside: false };
-
-  function onKeyDown(event) {
-    if (UP.has(event.code)) held.up = true;
-    else if (DOWN.has(event.code)) held.down = true;
-    else if (LEFT.has(event.code)) held.left = true;
-    else if (RIGHT.has(event.code)) held.right = true;
-    else if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') held.sprint = true;
-    else if (CONFIRM.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_CONFIRM | ACTION_ADVANCE;
-    } else if (PAUSE.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_PAUSE;
-    } else if (ENTER.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_ENTER;
-    } else if (PUNCH.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_PUNCH;
-    } else if (MUTE.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_MUTE;
-    } else if (RACE.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_RACE;
-    } else return;
-    event.preventDefault();
+  function keyName(event) {
+    // Normalise to lower-case letters; keep named keys as-is.
+    if (event.key.length === 1) return event.key.toLowerCase();
+    return event.key;
   }
 
-  function onKeyUp(event) {
-    if (UP.has(event.code)) held.up = false;
-    else if (DOWN.has(event.code)) held.down = false;
-    else if (LEFT.has(event.code)) held.left = false;
-    else if (RIGHT.has(event.code)) held.right = false;
-    else if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') held.sprint = false;
-  }
-
-  window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('keydown', (event) => {
+    const key = keyName(event);
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(event.key)) {
+      event.preventDefault();
+    }
+    if (!input.keys.has(key)) input.justPressed.add(key);
+    input.keys.add(key);
+    input.lastKey = key;
+  });
+  window.addEventListener('keyup', (event) => {
+    input.keys.delete(keyName(event));
+  });
   window.addEventListener('blur', () => {
-    held.up = held.down = held.left = held.right = held.sprint = false;
-    firing = false;
+    input.keys.clear();
   });
-  target.addEventListener('pointermove', (event) => {
-    const rect = target.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 1280;
-    mouse.y = ((event.clientY - rect.top) / rect.height) * 720;
-    mouse.inside = true;
+
+  canvas.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    input.mouseX = ((event.clientX - rect.left) / rect.width) * canvas.width;
+    input.mouseY = ((event.clientY - rect.top) / rect.height) * canvas.height;
   });
-  target.addEventListener('pointerdown', (event) => {
+  canvas.addEventListener('mousedown', (event) => {
     if (event.button === 0) {
-      firing = true;
-      actions |= ACTION_ADVANCE;
+      input.mouseDown = true;
+      input.mouseClicked = true;
     }
   });
-  window.addEventListener('pointerup', (event) => {
-    if (event.button === 0) firing = false;
+  window.addEventListener('mouseup', (event) => {
+    if (event.button === 0) input.mouseDown = false;
   });
 
-  return {
-    /** -1/0/1 on each axis from the held keys. */
-    move() {
-      return { x: (held.right ? 1 : 0) - (held.left ? 1 : 0), y: (held.down ? 1 : 0) - (held.up ? 1 : 0) };
-    },
-    sprinting() {
-      return held.sprint;
-    },
-    firing() {
-      return firing;
-    },
-    mouse() {
-      return mouse;
-    },
-    /** The one-shot presses since the last call, as ACTION_* flags. */
-    takeActions() {
-      const taken = actions;
-      actions = 0;
-      return taken;
-    },
-  };
+  return input;
 }
 
-/** A scripted input for screenshot poses: the autopilot sets these directly each step. */
-export function createScriptedInput() {
-  const moveVector = { x: 0, y: 0 };
-  const mousePos = { x: 640, y: 360, inside: true };
-  let fire = false;
-  let sprint = false;
-  return {
-    setMove(x, y) {
-      moveVector.x = x;
-      moveVector.y = y;
-    },
-    setMouse(x, y) {
-      mousePos.x = x;
-      mousePos.y = y;
-    },
-    setFiring(value) {
-      fire = value;
-    },
-    setSprint(value) {
-      sprint = value;
-    },
-    move() {
-      return moveVector;
-    },
-    sprinting() {
-      return sprint;
-    },
-    firing() {
-      return fire;
-    },
-    mouse() {
-      return mousePos;
-    },
-    takeActions() {
-      return 0;
-    },
-  };
+export function isDown(input, key) {
+  return input.keys.has(key);
+}
+
+// True only on the frame the key went down; consume it so a later check in
+// the same frame does not see it twice.
+export function wasPressed(input, key) {
+  if (input.justPressed.has(key)) {
+    input.justPressed.delete(key);
+    return true;
+  }
+  return false;
+}
+
+// True if the key went down this frame, without consuming it.
+export function pressedThisFrame(input, key) {
+  return input.justPressed.has(key);
+}
+
+export function endFrameInput(input) {
+  input.justPressed.clear();
+  input.mouseClicked = false;
 }

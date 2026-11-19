@@ -1,236 +1,125 @@
-// The screenshot scenes behind ?shot=race|drive|chase|doubloon (start and mission are kept
-// as staging functions for the title and firefight scenes). Each one stages a real
-// situation (a car, a wanted level, a mission in progress) and then plays the real rules
-// forward for a fixed number of steps under a simple autopilot, so the frame is what the game
-// really looks like and the same seed always gives the same frame.
-import { STEP } from './config.js';
-import { stepGame } from './game.js';
-import { enterCar } from './player.js';
-import { createCar } from './vehicles.js';
-import { spawnEnemies } from './combat.js';
-import { MISSION_BRIEFINGS } from './story.js';
-import { RACES } from './races.js';
-import { DOUBLOON_REWARD } from './collectibles.js';
-import { SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+// Solmar City — screenshot poses. With ?shot=<name> in the URL the game
+// skips the start screen and stages one honest moment of play: a real game
+// state, rendered by the game's own code. The chase pose nudges two police
+// cars into frame; the README says so.
 
-function angleDiff(a, b) {
-  let d = a - b;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
+import { CFG } from './config.js';
+import { makeCar } from './traffic.js';
+import { setWanted } from './police.js';
+import { RACES, startRace } from './races.js';
 
-/** Drive the player's car through waypoints; returns when the route is done or time is up. */
-function driveRoute(state, input, waypoints, seconds) {
-  let wp = 0;
-  const steps = Math.floor(seconds / STEP);
-  for (let i = 0; i < steps; i += 1) {
-    const car = state.player.car;
-    if (!car || wp >= waypoints.length) {
-      input.setMove(0, 0);
-    } else {
-      // Steer toward the next waypoint once close to this one, so turns start early and
-      // the car stays on the road instead of cutting the corner into a building.
-      let target = waypoints[wp];
-      const distHere = Math.hypot(target.x - car.x, target.y - car.y);
-      if (distHere < 150 && wp + 1 < waypoints.length) target = waypoints[wp + 1];
-      if (distHere < 110) wp += 1;
-      const want = Math.atan2(target.y - car.y, target.x - car.x);
-      const diff = angleDiff(want, car.angle);
-      const steer = Math.max(-1, Math.min(1, diff * 2.4));
-      // Coast into turns and near waypoints; full throttle only when well aligned.
-      const throttle = Math.abs(diff) > 0.5 || distHere < 220 ? 0 : -1;
-      input.setMove(steer, throttle);
-    }
-    updateMouseWorld(state, input);
-    stepGame(state, input, { enter: false, punch: false }, STEP);
-  }
-}
-
-function updateMouseWorld(state, input) {
-  const m = input.mouse();
-  state.mouseWorld = {
-    x: state.camera.x + (m.x - 640),
-    y: state.camera.y + (m.y - 360),
-  };
-}
-
-/** Put the player in a fresh car of the given type, parked on the avenue facing south. */
-function giveCar(state, type) {
-  const player = state.player;
-  const car = createCar(type, 1000, 780, Math.PI / 2, 'parked');
-  state.cars.push(car);
-  player.x = car.x;
-  player.y = car.y;
-  player.ownedCars.add(car.id);
-  enterCar(state, car);
+function putPlayerInCar(game, x, y, angle, speed, color, type) {
+  const car = makeCar(game.nextCarId, x, y, angle, color, type);
+  game.nextCarId += 1;
+  car.driven = true;
+  car.speed = speed;
+  car.vx = Math.cos(angle) * speed;
+  car.vy = Math.sin(angle) * speed;
+  game.cars.push(car);
+  const player = game.player;
+  player.onFoot = false;
+  player.car = car;
+  player.x = x;
+  player.y = y;
+  player.angle = angle;
   return car;
 }
 
-function stageStart(state, input) {
-  giveCar(state, 'sedan');
-  driveRoute(state, input, [{ x: 1000, y: 2400 }, { x: 2200, y: 2400 }], 6);
-  return { screen: SCREEN_TITLE };
+function stageRace(game) {
+  const race = RACES[0]; // Beach Sprint
+  const gate = race.gate;
+  // The player launches from the gate in a red sports car, race just started.
+  putPlayerInCar(game, gate.x, gate.y + 60, Math.PI / 2, 240, '#c23b2e', 'sport');
+  startRace(game, race);
+  game.races.active.countdown = 0;
+  game.races.active.time = 1.4;
+  game.message('Beach Sprint: checkpoint 1/12');
 }
 
-function stageRace(state, input) {
-  // The player sits in a sports car at the Beach Sprint start gate, the glowing gate ring
-  // and checkered flag in frame and the "Press R" prompt on the HUD: the round-2 street
-  // races. The race itself is not started — the gate and the prompt are the shot.
-  const player = state.player;
-  const gate = RACES[0].start;
-  const car = createCar('sports', gate.x, gate.y, 0, 'parked');
-  state.cars.push(car);
-  player.x = car.x;
-  player.y = car.y;
-  player.ownedCars.add(car.id);
-  enterCar(state, car);
-  state.camera.x = player.x;
-  state.camera.y = player.y;
-  // A couple of seconds of live world so traffic and pedestrians settle into the frame.
-  const steps = Math.floor(2 / STEP);
-  for (let i = 0; i < steps; i += 1) {
-    input.setMove(0, 0);
-    updateMouseWorld(state, input);
-    stepGame(state, input, { enter: false, punch: false }, STEP);
+function stageDrive(game) {
+  // Flat out east on Palm Street with traffic around.
+  const street = game.world.streets[3];
+  putPlayerInCar(game, 700, street + CFG.laneOffset, 0, 470, '#2e6fc2', 'sport');
+  // A few neighbours for the frame.
+  const neighbours = [
+    { x: 950, y: street - CFG.laneOffset, angle: Math.PI, speed: 150, color: '#e8c53a', type: 'taxi' },
+    { x: 1150, y: street + CFG.laneOffset, angle: 0, speed: 140, color: '#3aa655', type: 'sedan' },
+    { x: 450, y: street + CFG.laneOffset, angle: 0, speed: 150, color: '#e8e8e8', type: 'sedan' },
+  ];
+  for (const n of neighbours) {
+    const car = makeCar(game.nextCarId, n.x, n.y, n.angle, n.color, n.type);
+    game.nextCarId += 1;
+    car.speed = n.speed;
+    car.ai = 'traffic';
+    car.wasTraffic = true;
+    car.axis = 'h';
+    car.index = 3;
+    car.dir = n.angle === 0 ? 1 : -1;
+    game.cars.push(car);
   }
-  return { screen: SCREEN_PLAY };
 }
 
-function stageDrive(state, input) {
-  giveCar(state, 'sports');
-  driveRoute(state, input, [
-    { x: 1000, y: 2400 },
-    { x: 2800, y: 2400 },
-    { x: 2800, y: 1400 },
-  ], 8);
-  return { screen: SCREEN_PLAY };
-}
-
-function stageChase(state, input) {
-  const car = giveCar(state, 'sports');
-  car.color = '#d84a4a';
-  state.wanted.points = 450; // three stars: police cars and foot cops hunt the player
-  // Two police cars start behind the player on the same avenue, already in pursuit.
-  for (const back of [260, 430]) {
-    const cop = createCar('police', 1000, 780 - back, Math.PI / 2, 'police');
-    cop.speed = 420;
-    state.cars.push(cop);
+function stageChase(game) {
+  // Three stars, two police cars right behind the player on Coral Avenue.
+  const avenue = game.world.avenues[4];
+  putPlayerInCar(game, avenue + CFG.laneOffset, 900, Math.PI / 2, 400, '#e8c53a', 'sport');
+  setWanted(game, 3, false);
+  const spots = [
+    { x: avenue - CFG.laneOffset, y: 800 },
+    { x: avenue + CFG.laneOffset, y: 760 },
+  ];
+  for (const spot of spots) {
+    const car = makeCar(game.nextCarId, spot.x, spot.y, Math.PI / 2, '#f2f2f2', 'police');
+    game.nextCarId += 1;
+    car.ai = 'police';
+    car.axis = 'v';
+    car.index = 4;
+    car.dir = 1;
+    car.speed = 380;
+    car.mode = 'ram';
+    game.cars.push(car);
   }
-  state.mission.objective = 'Lose the cops — 3 stars!';
-  state.mission.waypoint = { x: state.city.safehouse.x, y: state.city.safehouse.y };
-  state.banner = { text: 'THE HEAT IS ON', sub: 'Lose the cops to clear your wanted level', timer: 30 };
-  driveRoute(state, input, [
-    { x: 1000, y: 2400 },
-    { x: 2800, y: 2400 },
-    { x: 2800, y: 900 },
-    { x: 1600, y: 900 },
-  ], 7);
-  // The chase is the shot: if the pursuit fell out of frame, bring the nearest police car
-  // back into view behind the player, still on the road and still chasing.
-  const playerCar = state.player.car;
-  if (playerCar) {
-    let nearest = null;
-    let nearestD = Infinity;
-    for (const c of state.cars) {
-      if (c.driver !== 'police') continue;
-      const d = Math.hypot(c.x - playerCar.x, c.y - playerCar.y);
-      if (d < nearestD) {
-        nearestD = d;
-        nearest = c;
-      }
-    }
-    if (nearest && nearestD > 500) {
-      nearest.x = playerCar.x - Math.cos(playerCar.angle) * 300;
-      nearest.y = playerCar.y - Math.sin(playerCar.angle) * 300;
-      nearest.angle = playerCar.angle;
-      nearest.speed = 500;
-    }
-  }
-  return { screen: SCREEN_PLAY };
+  game.message('The police are on to you!');
 }
 
-function stageMission(state, input) {
-  const plaza = state.city.plaza;
-  const player = state.player;
-  player.x = plaza.x - 230;
-  player.y = plaza.y + 60;
-  player.health = 100;
-  state.camera.x = player.x;
-  state.camera.y = player.y;
-  state.mission.index = 3;
-  state.mission.active = true;
-  state.mission.stage = 1;
-  state.mission.objective = 'Defeat Los Tiburones: 6 left';
-  state.mission.waypoint = { x: plaza.x, y: plaza.y };
-  spawnEnemies(state, plaza.x, plaza.y, 6);
-  // Three seconds of real combat: aim at the nearest living rival and fire, strafing slowly.
-  const steps = Math.floor(3 / STEP);
-  for (let i = 0; i < steps; i += 1) {
-    let target = null;
-    let bestD = Infinity;
-    for (const e of state.enemies) {
-      if (e.state === 'dead') continue;
-      const d = Math.hypot(e.x - player.x, e.y - player.y);
-      if (d < bestD) {
-        bestD = d;
-        target = e;
-      }
-    }
-    if (target) {
-      input.setMouse(640 + (target.x - state.camera.x), 360 + (target.y - state.camera.y));
-      input.setFiring(true);
-    } else {
-      input.setFiring(false);
-    }
-    // Strafe sideways so the frame reads as a moving firefight.
-    input.setMove(Math.sin(i * 0.02) * 0.7, 0);
-    updateMouseWorld(state, input);
-    stepGame(state, input, { enter: false, punch: false }, STEP);
+function stageDoubloon(game) {
+  // On foot in the park, one doubloon already found, another right ahead.
+  const park = game.world.park;
+  const player = game.player;
+  player.x = park.cx - 40;
+  player.y = park.cy + 60;
+  player.angle = -Math.PI / 2;
+  // Mark the first doubloon collected so the HUD reads 1 / 12.
+  if (game.doubloons.length > 0) {
+    game.doubloons[0].taken = true;
+    if (!game.save.doubloons.includes(0)) game.save.doubloons.push(0);
   }
-  input.setFiring(false);
-  const alive = state.enemies.filter((e) => e.state !== 'dead').length;
-  state.mission.objective = `Defeat Los Tiburones: ${alive} left`;
-  // The firefight is staged mid-mission: the hero walks in healthy.
-  state.player.health = 100;
-  // The briefing line stays on screen for the shot: the dialogue box is part of the game.
-  state.dialogue = { lines: MISSION_BRIEFINGS[3], index: 0, timer: 0 };
-  return { screen: SCREEN_PLAY };
+  // Stand the player next to the second coin.
+  if (game.doubloons.length > 1) {
+    player.x = game.doubloons[1].x - 24;
+    player.y = game.doubloons[1].y + 30;
+    player.angle = Math.atan2(game.doubloons[1].y - player.y, game.doubloons[1].x - player.x);
+  }
+  game.message('Doubloon! +$100 (1 / 12)');
 }
 
-function stageDoubloon(state, input) {
-  // The player on foot in the park, one doubloon already pocketed and two more bobbing in
-  // frame: the round-2 hidden coins. Shot mode never collects (updateCollectibles is
-  // skipped there), so the found coin is staged directly, with its $100, like the mission
-  // stage sets its own mission state.
-  const player = state.player;
-  player.x = 1925;
-  player.y = 1625;
-  player.health = 100;
-  state.camera.x = player.x;
-  state.camera.y = player.y;
-  state.doubloons.found[0] = true;
-  state.doubloons.count = 1;
-  player.money += DOUBLOON_REWARD;
-  // A few seconds of live world so pedestrians wander in and the coins' bob settles.
-  const steps = Math.floor(2 / STEP);
-  for (let i = 0; i < steps; i += 1) {
-    input.setMove(0, 0);
-    updateMouseWorld(state, input);
-    stepGame(state, input, { enter: false, punch: false }, STEP);
-  }
-  return { screen: SCREEN_PLAY };
-}
+const POSES = {
+  race: stageRace,
+  drive: stageDrive,
+  chase: stageChase,
+  doubloon: stageDoubloon,
+};
 
-/**
- * Set the game to the named scene (race, drive, chase, doubloon, start or mission; any
- * other name is start) and return the screen to draw over it.
- */
-export function stageShot(name, state, input) {
-  if (name === 'drive') return stageDrive(state, input);
-  if (name === 'chase') return stageChase(state, input);
-  if (name === 'mission') return stageMission(state, input);
-  if (name === 'race') return stageRace(state, input);
-  if (name === 'doubloon') return stageDoubloon(state, input);
-  return stageStart(state, input);
+// Returns true when a pose was applied.
+export function applyShot(game, name) {
+  const pose = POSES[name];
+  if (!pose) return false;
+  game.shotMode = true;
+  game.shotName = name;
+  pose(game);
+  game.state = 'playing';
+  // Centre the camera on the player at once (no sweep-in).
+  game.camera.x = game.player.x - CFG.viewWidth / 2;
+  game.camera.y = game.player.y - CFG.viewHeight / 2;
+  return true;
 }
