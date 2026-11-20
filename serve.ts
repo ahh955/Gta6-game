@@ -1,19 +1,19 @@
-// Solmar City — a tiny static server for playing the game locally.
-// Serves game/ at the root: run `node serve.ts`, then open
-// http://localhost:8080 in desktop Chrome. Nothing leaves the machine.
+// Solmar City — tiny static server for local playtesting.
+// Serves game/ at http://localhost:8080 (no network, no build step).
+// Run: node serve.ts
 
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = join(new URL('.', import.meta.url).pathname, 'game');
-const port = Number(process.env.PORT || 8080);
+const here = fileURLToPath(new URL('.', import.meta.url));
+const root = join(here, 'game');
+const port = Number(process.env.PORT ?? 8080);
 
-const types = {
+const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
@@ -21,24 +21,16 @@ const types = {
   '.jpeg': 'image/jpeg',
 };
 
-const server = createServer(async (req, res) => {
-  try {
-    const url = new URL(req.url || '/', 'http://localhost');
-    let path = normalize(join(root, url.pathname === '/' ? 'index.html' : url.pathname));
-    if (!path.startsWith(root)) {
-      res.writeHead(403);
-      res.end('forbidden');
-      return;
-    }
-    const body = await readFile(path);
-    res.writeHead(200, { 'content-type': types[extname(path)] || 'application/octet-stream' });
-    res.end(body);
-  } catch (e) {
-    res.writeHead(404);
+createServer((req, res) => {
+  const path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+  const file = join(root, path === '/' ? 'index.html' : path);
+  if (!file.startsWith(root) || !existsSync(file) || !statSync(file).isFile()) {
+    res.writeHead(404, { 'content-type': 'text/plain' });
     res.end('not found');
+    return;
   }
-});
-
-server.listen(port, () => {
-  console.log(`Solmar City at http://localhost:${port}`);
+  res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' });
+  createReadStream(file).pipe(res);
+}).listen(port, () => {
+  console.log('Solmar City at http://localhost:' + port);
 });

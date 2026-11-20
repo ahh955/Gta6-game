@@ -1,272 +1,304 @@
-// Solmar City — five story missions with Dario Reyes, Mama Luz and the
-// Los Tiburones gang. Missions unlock one after another; each pays cash on
-// completion and saves its progress.
+// Solmar City — story missions: nine jobs with a named cast, told in steps
+// (drive to a marker, clear enemies, hack terminals, survive, escape).
+// Completing a job pays cash, respect and unlocks the next one.
 
-import { CFG } from './config.js';
-import { setWanted } from './police.js';
-import { spawnEnemies } from './combat.js';
-import { makeCar } from './traffic.js';
+const Missions = (() => {
+  // Cast: Rico "Dare" Solis (you), Rosa Vega (auntie, safehouse), Maya Reyes,
+  // Ghost Tanaka, Big Lou Marín, and the Viper boss, Silas Vane.
+  const DEFS = [
+    { id: 'm1', name: 'Welcome to Solmar', giver: 'Rosa Vega', reward: 300, respect: 60,
+      brief: 'Rosa: "Dare, you are home. My house is your house — drive over and let me see your face."',
+      steps: [
+        { type: 'goto', x: 500, y: 500, text: 'Drive to Rosa\'s Safehouse' },
+        { type: 'talk', text: 'Rosa: "The Vipers run the east side now. We take our city back — one job at a time."' },
+      ] },
+    { id: 'm2', name: 'Wheels for Maya', giver: 'Maya Reyes', reward: 600, respect: 100,
+      brief: 'Maya: "I need a Viento GT for a job. There is one parked near the Marina. Bring it to the garage — and try not to scratch it."',
+      steps: [
+        { type: 'steal', model: 'sport', x: 700, y: 1700, text: 'Steal the Viento GT near the Marina' },
+        { type: 'deliver', x: 1700, y: 900, text: 'Deliver the Viento GT to Solmar Customs Garage' },
+      ],
+      onComplete: () => Crew.recruit('maya') },
+    { id: 'm3', name: 'Ghost in the Machine', giver: 'Ghost Tanaka', reward: 800, respect: 120,
+      brief: 'Ghost: "SPD cameras watch every corner. Hack three of their relay boxes downtown and I can blind them — but the cops will notice."',
+      steps: [
+        { type: 'hack', points: [[2700, 300], [3100, 700], [2300, 700]], text: 'Hack the SPD relay boxes (hold E)' },
+        { type: 'escape', text: 'Lose the cops — get your wanted level to zero' },
+      ],
+      onComplete: () => Crew.recruit('ghost') },
+    { id: 'm4', name: "Lou's Last Stand", giver: 'Big Lou Marín', reward: 1000, respect: 150,
+      brief: 'Lou: "The Vipers cornered me at the plaza! I need backup NOW — bring a gun and use the walls for cover."',
+      steps: [
+        { type: 'goto', x: 1700, y: 1300, text: 'Reach Solmar Plaza' },
+        { type: 'kill', count: 8, spawn: [[1700, 1300]], text: 'Defend Lou — take out 8 Vipers (C = cover)' },
+      ],
+      onComplete: () => Crew.recruit('lou') },
+    { id: 'm5', name: 'Harbor Heist', giver: 'Rosa Vega', reward: 1400, respect: 180,
+      brief: 'Rosa: "A Viper shipment sits at Harbor East. Grab the crates, load them in a van and bring them home. Quietly, if you can."',
+      steps: [
+        { type: 'goto', x: 2900, y: 1700, text: 'Reach the Harbor East docks' },
+        { type: 'collect', points: [[2900, 1500], [3100, 1700], [2700, 1900]], text: 'Grab the 3 Viper crates (walk over them)' },
+        { type: 'deliver', x: 500, y: 500, text: 'Bring the goods back to the Safehouse' },
+      ] },
+    { id: 'm6', name: 'The Marina Run', giver: 'Maya Reyes', reward: 1200, respect: 150,
+      brief: 'Maya: "A buyer waits at the pier in 90 seconds. Drive like the tide is chasing you — because the Vipers are."',
+      steps: [
+        { type: 'timed', x: 300, y: 2150, seconds: 90, text: 'Reach Solmar Pier in 90 seconds' },
+      ] },
+    { id: 'm7', name: 'Roadblock Runner', giver: 'Ghost Tanaka', reward: 1600, respect: 200,
+      brief: 'Ghost: "I leaked a fake tip — SPD thinks you robbed the bank. Roadblocks are up everywhere. Get home and lay low."',
+      steps: [
+        { type: 'wanted', stars: 3, text: 'SPD is on you — survive the heat' },
+        { type: 'escape', text: 'Shake the cops and reach the Safehouse' },
+        { type: 'goto', x: 500, y: 500, text: 'Reach the Safehouse' },
+      ] },
+    { id: 'm8', name: "The Kingpin's Gambit", giver: 'Rosa Vega', reward: 2500, respect: 300,
+      brief: 'Rosa: "Silas Vane runs the Vipers from the old casino downtown. End it, Dare. Take his lieutenants, then take him."',
+      steps: [
+        { type: 'goto', x: 2700, y: 500, text: 'Reach the old casino in Downtown' },
+        { type: 'kill', count: 6, spawn: [[2700, 500]], text: 'Clear Vane\'s lieutenants' },
+        { type: 'boss', name: 'Silas Vane', x: 2700, y: 500, text: 'Defeat Silas Vane' },
+      ] },
+    { id: 'm9', name: 'Solmar Sunrise', giver: 'Rosa Vega', reward: 5000, respect: 500,
+      brief: 'Rosa: "One last run, Dare. The Vipers\' money boat leaves from the pier at dawn. Take the money, lose the cops, and come home a legend."',
+      steps: [
+        { type: 'goto', x: 300, y: 2150, text: 'Reach Solmar Pier' },
+        { type: 'kill', count: 6, spawn: [[300, 2150]], text: 'Take the pier from the Vipers' },
+        { type: 'escape', text: 'CONDOR-1 is up — lose the cops' },
+        { type: 'goto', x: 500, y: 500, text: 'Come home to the Safehouse' },
+      ] },
+  ];
 
-// Every mission place, derived from the city layout.
-export function missionSpots(world) {
-  return {
-    dario: { x: world.avenues[2], y: world.streets[1] },
-    goldCar: { x: world.avenues[4] + 40, y: world.streets[0] + 120 },
-    garage: { x: world.avenues[2], y: world.streets[2] },
-    diner: { x: world.avenues[1], y: world.streets[3] },
-    package: { x: world.piers[0].x + 30, y: world.piers[0].y + 120 },
-    parkGate: { x: world.park.cx, y: world.park.y + world.park.h + 46 },
-    parkCentre: { x: world.park.cx, y: world.park.cy },
-    safehouse: { x: world.avenues[6], y: world.streets[2] },
-    warehouse: { x: world.avenues[5], y: world.streets[5] },
-    truck: { x: world.piers[1].x + 30, y: CFG.harborY + 70 },
-  };
-}
+  let current = null; // { def, stepIdx, data }
+  let markers = [];
 
-export const MISSION_DEFS = [
-  {
-    id: 0,
-    name: 'First Wheels',
-    giver: 'Dario Reyes',
-    reward: 500,
-    letter: 'D',
-    brief: [
-      'Dario Reyes: "Listen, kid. A gold Comet is sitting up on Palm Avenue,',
-      'keys in it, owner nowhere. Bring it to my garage and I will make it',
-      'worth your while. Five hundred, no questions."',
-    ],
-    startKey: 'dario',
-  },
-  {
-    id: 1,
-    name: "Mama Luz's Errand",
-    giver: 'Mama Luz',
-    reward: 800,
-    letter: 'L',
-    brief: [
-      'Mama Luz: "My spice shipment is waiting at the harbour, mijo, and my',
-      'lunch crowd arrives in ninety seconds. Pick it up and bring it to the',
-      'diner. Drive like your abuela is watching. She is."',
-    ],
-    startKey: 'diner',
-  },
-  {
-    id: 2,
-    name: 'Turf War',
-    giver: 'Dario Reyes',
-    reward: 1200,
-    letter: 'D',
-    brief: [
-      'Dario Reyes: "Los Tiburones took the park. Six of them, armed, acting',
-      'like they own Solmar. Take the park back and the whole city hears',
-      'about it. Twelve hundred. Do not miss."',
-    ],
-    startKey: 'parkGate',
-  },
-  {
-    id: 3,
-    name: 'The Getaway',
-    giver: 'Mama Luz',
-    reward: 1800,
-    letter: 'L',
-    brief: [
-      'Mama Luz: "The police know your face now, mijo. Three stars, and they',
-      'will not stop. Stay free for one minute, then come home to the',
-      'safehouse. Eighteen hundred, and I cook for a week."',
-    ],
-    startKey: 'safehouse',
-  },
-  {
-    id: 4,
-    name: 'Harbor Heist',
-    giver: 'Dario Reyes',
-    reward: 2500,
-    letter: 'D',
-    brief: [
-      'Dario Reyes: "Last job, biggest pay. A Tiburones truck full of cargo',
-      'is sitting at the harbour. Take it, lose the heat as best you can,',
-      'and bring it to my warehouse. Twenty-five hundred. You are a legend',
-      'after this, kid."',
-    ],
-    startKey: 'warehouse',
-  },
-];
+  function byId(id) { return DEFS.find(d => d.id === id); }
+  function nextMission() { return DEFS.find(d => !G.missionsDone.includes(d.id)); }
+  function getCurrent() { return current; }
+  function isDone(id) { return G.missionsDone.includes(id); }
 
-export function createMissions() {
-  return {
-    active: null, // { def, step, timer, targetCar, enemiesLeft }
-    spots: null, // filled by main.js once the world exists
-  };
-}
+  // Mission start markers live around the city; the next job's marker is gold.
+  function startMarkers() {
+    const next = nextMission();
+    if (!next) return [];
+    const spots = {
+      m1: [500, 500], m2: [900, 1700], m3: [2500, 700], m4: [1700, 1300],
+      m5: [2900, 1500], m6: [2100, 1700], m7: [1500, 900], m8: [2700, 500], m9: [300, 2150],
+    };
+    const s = spots[next.id] || [500, 500];
+    return [{ x: s[0], y: s[1], mission: next }];
+  }
 
-export function nextMissionIndex(game) {
-  return game.save.missionsDone;
-}
+  function startMission(def) {
+    if (current) return;
+    if (Races.getActive()) { HUD.toast('Finish the race first!', '#ffb347'); return; }
+    current = { def, stepIdx: 0, data: {}, startedAt: G.time };
+    markers = [];
+    HUD.showBrief(def);
+    AudioSys.pickup();
+    enterStep();
+  }
 
-export function nextMissionDef(game) {
-  const idx = nextMissionIndex(game);
-  if (idx >= MISSION_DEFS.length) return null;
-  return MISSION_DEFS[idx];
-}
-
-// Where the player goes to start the next mission (or the active objective).
-export function currentObjective(game) {
-  const missions = game.missions;
-  if (missions.active) {
-    const a = missions.active;
-    const spots = missions.spots;
-    if (a.def.id === 0) {
-      if (a.step === 0) return { x: spots.goldCar.x, y: spots.goldCar.y, label: 'Steal the gold Comet' };
-      return { x: spots.garage.x, y: spots.garage.y, label: 'Deliver the Comet to the garage' };
+  function enterStep() {
+    const st = current.def.steps[current.stepIdx];
+    const d = current.data;
+    d.hackDone = 0; d.collectDone = 0; d.killDone = 0; d.timer = 0; d.stealCar = null; d.holdT = 0;
+    if (st.type === 'kill') spawnSquad(st.spawn[0][0], st.spawn[0][1], st.count, false);
+    if (st.type === 'boss') {
+      const b = Combat.spawnEnemy(st.x + 60, st.y, { hp: 220, boss: true, name: st.name, weapon: 'smg' });
+      d.boss = b;
+      spawnSquad(st.x, st.y, 3, false);
     }
-    if (a.def.id === 1) {
-      if (a.step === 0) return { x: spots.package.x, y: spots.package.y, label: 'Pick up the spice shipment' };
-      return { x: spots.diner.x, y: spots.diner.y, label: `Deliver to Mama Luz (${Math.ceil(a.timer)}s)` };
+    if (st.type === 'steal') {
+      const car = Vehicles.makeCar(st.model, st.x, st.y, 0, { driver: null, locked: true });
+      G.cars.push(car);
+      d.stealCar = car;
     }
-    if (a.def.id === 2) {
-      return { x: spots.parkCentre.x, y: spots.parkCentre.y, label: `Clear the park (${a.enemiesLeft} left)` };
-    }
-    if (a.def.id === 3) {
-      if (a.step === 0) return { x: game.player.x, y: game.player.y, label: `Stay free (${Math.ceil(a.timer)}s)` };
-      return { x: spots.safehouse.x, y: spots.safehouse.y, label: 'Reach the safehouse' };
-    }
-    if (a.def.id === 4) {
-      if (a.step === 0) return { x: spots.truck.x, y: spots.truck.y, label: 'Steal the Tiburones truck' };
-      return { x: spots.warehouse.x, y: spots.warehouse.y, label: 'Deliver the truck to the warehouse' };
+    if (st.type === 'wanted') Police.setHeat(60);
+    if (st.type === 'escape' && current.def.id === 'm9') Police.setHeat(80);
+    updateObjective();
+  }
+
+  function spawnSquad(x, y, n, spread) {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Util.TAU;
+      const r = spread ? 260 : 120 + Math.random() * 160;
+      const ex = Util.clamp(x + Math.cos(a) * r, 20, City.W - 20);
+      const ey = Util.clamp(y + Math.sin(a) * r, 20, City.WATER_Y - 20);
+      Combat.spawnEnemy(ex, ey, { weapon: Math.random() < 0.3 ? 'smg' : 'pistol' });
     }
   }
-  const def = nextMissionDef(game);
-  if (!def) return null;
-  const spot = missions.spots[def.startKey];
-  return { x: spot.x, y: spot.y, label: `See ${def.giver}: ${def.name}` };
-}
 
-export function tryStartMission(game) {
-  if (game.missions.active) return null;
-  const def = nextMissionDef(game);
-  if (!def) return null;
-  const spot = game.missions.spots[def.startKey];
-  if (Math.hypot(game.player.x - spot.x, game.player.y - spot.y) > 70) return null;
-  return def;
-}
-
-function spawnMissionCar(game, spot, color, type) {
-  const car = makeCar(game.nextCarId, spot.x, spot.y, 0, color, type);
-  game.nextCarId += 1;
-  car.parked = true;
-  car.missionCar = true;
-  game.cars.push(car);
-  return car;
-}
-
-export function startMission(game, def) {
-  const spots = game.missions.spots;
-  const active = { def, step: 0, timer: 0, targetCar: null, enemiesLeft: 0 };
-  if (def.id === 0) {
-    active.targetCar = spawnMissionCar(game, spots.goldCar, '#e8c53a', 'sport');
-  } else if (def.id === 2) {
-    spawnEnemies(game, spots.parkCentre.x, spots.parkCentre.y, 6, '#2e8f83', true);
-    active.enemiesLeft = 6;
-  } else if (def.id === 3) {
-    setWanted(game, 3, true);
-    active.timer = 60;
-  } else if (def.id === 4) {
-    active.targetCar = spawnMissionCar(game, spots.truck, '#5b6ee8', 'truck');
+  function currentStep() { return current ? current.def.steps[current.stepIdx] : null; }
+  function objectiveText() {
+    if (!current) return null;
+    const st = currentStep();
+    let extra = '';
+    if (st.type === 'kill') extra = ' (' + current.data.killDone + '/' + st.count + ')';
+    if (st.type === 'hack') extra = ' (' + current.data.hackDone + '/' + st.points.length + ')';
+    if (st.type === 'collect') extra = ' (' + current.data.collectDone + '/' + st.points.length + ')';
+    if (st.type === 'timed') extra = ' — ' + Math.ceil(st.seconds - current.data.timer) + 's left';
+    return st.text + extra;
   }
-  game.missions.active = active;
-  game.message(`Mission started: ${def.name} ($${def.reward})`);
-}
 
-function completeMission(game) {
-  const active = game.missions.active;
-  const def = active.def;
-  game.missions.active = null;
-  game.save.cash += def.reward;
-  game.save.totalEarned += def.reward;
-  game.save.missionsDone = Math.max(game.save.missionsDone, def.id + 1);
-  game.audio.missionDone();
-  game.state = 'complete';
-  game.stateData = {
-    title: 'MISSION COMPLETE',
-    lines: [def.name, `Reward: $${def.reward}`, game.save.missionsDone >= MISSION_DEFS.length ? 'All missions complete. Solmar City is yours!' : `Next: ${MISSION_DEFS[game.save.missionsDone].name}`],
-  };
-}
+  function updateObjective() { /* HUD reads objectiveText() each frame */ }
 
-export function failMission(game, reason) {
-  const active = game.missions.active;
-  if (!active) return;
-  if (active.def.id === 3) setWanted(game, game.police.wanted, false);
-  if (active.targetCar) {
-    game.cars = game.cars.filter((c) => c !== active.targetCar);
+  function advanceStep() {
+    current.stepIdx++;
+    if (current.stepIdx >= current.def.steps.length) completeMission();
+    else enterStep();
   }
-  if (active.def.id === 2) {
-    // Only the mission's own gang members count; the harbour thugs are
-    // free-roam and never block the objective.
-    game.combat.enemies = game.combat.enemies.filter((e) => !e.mission || e.state === 'down');
-  }
-  game.missions.active = null;
-  game.message(`Mission failed: ${reason}`);
-}
 
-export function updateMissions(game, dt) {
-  const active = game.missions.active;
-  if (!active) return;
-  const spots = game.missions.spots;
-  const player = game.player;
-
-  if (active.def.id === 0) {
-    if (active.step === 0) {
-      if (!player.onFoot && player.car === active.targetCar) {
-        active.step = 1;
-        game.message('Got the Comet! Take it to Dario\'s garage.');
-      }
-    } else if (!player.onFoot && player.car === active.targetCar) {
-      if (Math.hypot(player.x - spots.garage.x, player.y - spots.garage.y) < 70) {
-        completeMission(game);
-      }
-    }
-  } else if (active.def.id === 1) {
-    if (active.step === 0) {
-      if (Math.hypot(player.x - spots.package.x, player.y - spots.package.y) < 46) {
-        active.step = 1;
-        active.timer = 90;
-        game.message('Got the spices! 90 seconds to the diner!');
-        game.audio.checkpoint();
-      }
-    } else {
-      active.timer -= dt;
-      if (active.timer <= 0) {
-        failMission(game, 'the lunch crowd came and went');
-      } else if (Math.hypot(player.x - spots.diner.x, player.y - spots.diner.y) < 70) {
-        completeMission(game);
-      }
-    }
-  } else if (active.def.id === 2) {
-    const alive = game.combat.enemies.filter((e) => e.state === 'alive' && e.mission).length;
-    active.enemiesLeft = alive;
-    if (alive === 0) completeMission(game);
-  } else if (active.def.id === 3) {
-    if (active.step === 0) {
-      active.timer -= dt;
-      if (active.timer <= 0) {
-        active.step = 1;
-        setWanted(game, game.police.wanted, false);
-        game.message('You outlasted them! Get to the safehouse.');
-      }
-    } else if (Math.hypot(player.x - spots.safehouse.x, player.y - spots.safehouse.y) < 70) {
-      completeMission(game);
-    }
-  } else if (active.def.id === 4) {
-    if (active.step === 0) {
-      if (!player.onFoot && player.car === active.targetCar) {
-        active.step = 1;
-        setWanted(game, 2, false);
-        game.message('You have the truck! The police are on to you!');
-      }
-    } else if (!player.onFoot && player.car === active.targetCar) {
-      if (Math.hypot(player.x - spots.warehouse.x, player.y - spots.warehouse.y) < 70) {
-        completeMission(game);
-      }
+  function onEnemyKilled(e) {
+    if (!current) return;
+    const st = currentStep();
+    if (st.type === 'kill') {
+      current.data.killDone++;
+      if (current.data.killDone >= st.count) advanceStep();
+    } else if (st.type === 'boss' && e === current.data.boss) {
+      advanceStep();
     }
   }
-}
+
+  function update(dt) {
+    if (!current) return;
+    const st = currentStep();
+    const d = current.data;
+    const p = G.player;
+    d.timer += dt;
+    if (st.type === 'goto' || st.type === 'deliver') {
+      if (Util.dist(p.x, p.y, st.x, st.y) < 90) advanceStep();
+    } else if (st.type === 'talk') {
+      if (d.timer > 3.5) advanceStep();
+    } else if (st.type === 'steal') {
+      if (p.inCar && p.car === d.stealCar) advanceStep();
+    } else if (st.type === 'hack') {
+      const pt = st.points[d.hackDone];
+      if (pt && Util.dist(p.x, p.y, pt[0], pt[1]) < 60) {
+        if (G.keys['KeyE']) {
+          d.holdT += dt;
+          if (d.holdT > 1.6) {
+            d.holdT = 0;
+            d.hackDone++;
+            AudioSys.pickup();
+            Police.addHeat(12);
+            HUD.toast('Relay hacked (' + d.hackDone + '/' + st.points.length + ')', '#5ad9c8');
+            if (d.hackDone >= st.points.length) advanceStep();
+          }
+        } else d.holdT = Math.max(0, d.holdT - dt * 2);
+      } else d.holdT = 0;
+    } else if (st.type === 'collect') {
+      const pt = st.points[d.collectDone];
+      if (pt && Util.dist(p.x, p.y, pt[0], pt[1]) < 55) {
+        d.collectDone++;
+        AudioSys.pickup();
+        if (d.collectDone >= st.points.length) advanceStep();
+      }
+    } else if (st.type === 'timed') {
+      if (Util.dist(p.x, p.y, st.x, st.y) < 90) advanceStep();
+      else if (d.timer > st.seconds) failMission('Out of time — the buyer left.');
+    } else if (st.type === 'wanted') {
+      if (Police.wanted() >= st.stars) advanceStep();
+    } else if (st.type === 'escape') {
+      if (Police.wanted() === 0) advanceStep();
+    }
+    // Mission fail conditions.
+    if (p.dead) failMission('You got wasted.');
+    if (G.state === 'busted') failMission('Busted by Solmar PD.');
+  }
+
+  function completeMission() {
+    const def = current.def;
+    G.missionsDone.push(def.id);
+    Economy.addCash(def.reward);
+    Economy.addRespect(def.respect);
+    AudioSys.missionDone();
+    HUD.showResult('MISSION COMPLETE', def.name + '\n' + Util.formatMoney(def.reward) + '  ·  +' + def.respect + ' respect' +
+      (G.missionsDone.length >= DEFS.length ? '\n\nYou finished the story — Solmar is yours, Kingpin.' : ''),
+      '#7ec850');
+    if (def.onComplete) def.onComplete();
+    current = null;
+    G.enemies = [];
+    Save.saveGame();
+  }
+
+  function failMission(reason) {
+    const def = current.def;
+    current = null;
+    G.enemies = [];
+    AudioSys.missionFail();
+    HUD.showResult('MISSION FAILED', def.name + '\n' + reason + '\nDrive back to the gold marker to retry.', '#ff5a3c');
+  }
+
+  function drawMarkers(g) {
+    // Next-mission start marker.
+    for (const m of startMarkers()) {
+      if (current) break;
+      g.save();
+      g.translate(m.x, m.y);
+      const bob = Math.sin(G.time * 2.5) * 4;
+      g.fillStyle = 'rgba(255,210,63,0.25)';
+      g.beginPath(); g.arc(0, 0, 46, 0, Util.TAU); g.fill();
+      g.fillStyle = '#ffd23f';
+      g.font = 'bold 34px Arial'; g.textAlign = 'center';
+      g.fillText(m.mission.giver[0], 0, 12 + bob);
+      g.strokeStyle = '#7a4d00'; g.lineWidth = 2;
+      g.beginPath(); g.arc(0, 0, 30, 0, Util.TAU); g.stroke();
+      g.fillStyle = '#fff';
+      g.font = 'bold 12px Arial';
+      g.fillText(m.mission.name.toUpperCase(), 0, -40);
+      g.restore();
+    }
+    if (!current) return;
+    const st = currentStep();
+    // Objective markers per step type.
+    const drawTarget = (x, y, label, color) => {
+      g.save();
+      g.translate(x, y);
+      const pulse = 1 + Math.sin(G.time * 4) * 0.08;
+      g.fillStyle = color || 'rgba(255,210,63,0.3)';
+      g.beginPath(); g.arc(0, 0, 70 * pulse, 0, Util.TAU); g.fill();
+      g.strokeStyle = '#ffd23f'; g.lineWidth = 3;
+      g.setLineDash([12, 8]);
+      g.beginPath(); g.arc(0, 0, 70 * pulse, 0, Util.TAU); g.stroke();
+      g.setLineDash([]);
+      if (label) {
+        g.fillStyle = '#fff';
+        g.font = 'bold 13px Arial'; g.textAlign = 'center';
+        g.fillText(label, 0, -80);
+      }
+      g.restore();
+    };
+    const d = current.data;
+    if (st.type === 'goto' || st.type === 'deliver' || st.type === 'timed') drawTarget(st.x, st.y, 'OBJECTIVE');
+    if (st.type === 'steal' && d.stealCar) drawTarget(d.stealCar.x, d.stealCar.y, 'STEAL IT');
+    if (st.type === 'hack') st.points.forEach((pt, i) => { if (i >= d.hackDone) drawTarget(pt[0], pt[1], i === d.hackDone ? 'HOLD E TO HACK' : 'RELAY ' + (i + 1)); });
+    if (st.type === 'collect') st.points.forEach((pt, i) => { if (i >= d.collectDone) drawTarget(pt[0], pt[1], 'CRATE'); });
+    if (st.type === 'kill' || st.type === 'boss') drawTarget(st.spawn ? st.spawn[0][0] : st.x, st.spawn ? st.spawn[0][1] : st.y, 'CLEAR THE AREA', 'rgba(255,90,60,0.25)');
+    // Guide line to the current target.
+    let tx = null, ty = null;
+    if (st.x !== undefined) { tx = st.x; ty = st.y; }
+    else if (st.type === 'hack') { const pt = st.points[d.hackDone]; if (pt) { tx = pt[0]; ty = pt[1]; } }
+    else if (st.type === 'collect') { const pt = st.points[d.collectDone]; if (pt) { tx = pt[0]; ty = pt[1]; } }
+    else if (st.type === 'steal' && d.stealCar) { tx = d.stealCar.x; ty = d.stealCar.y; }
+    if (tx !== null) {
+      g.strokeStyle = 'rgba(255,210,63,0.45)';
+      g.lineWidth = 4;
+      g.setLineDash([18, 14]);
+      g.beginPath(); g.moveTo(G.player.x, G.player.y); g.lineTo(tx, ty); g.stroke();
+      g.setLineDash([]);
+    }
+    // Hack progress ring.
+    if (st.type === 'hack' && d.holdT > 0) {
+      g.save();
+      g.translate(G.player.x, G.player.y - 30);
+      g.fillStyle = 'rgba(0,0,0,0.6)';
+      g.fillRect(-30, -8, 60, 10);
+      g.fillStyle = '#5ad9c8';
+      g.fillRect(-29, -7, 58 * (d.holdT / 1.6), 8);
+      g.restore();
+    }
+  }
+
+  return { DEFS, byId, nextMission, getCurrent, isDone, startMarkers, startMission, currentStep, objectiveText, onEnemyKilled, update, drawMarkers };
+})();

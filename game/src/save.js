@@ -1,48 +1,69 @@
-// Solmar City — progress saved to localStorage: cash, missions, doubloons,
-// race best times and the mute setting. Everything is guarded: a browser
-// that refuses storage just plays without saving.
+// Solmar City — localStorage save: progress, cash, respect, crew, garage,
+// weapons and race records survive between sessions.
 
-import { CFG, SAVE_KEY } from './config.js';
+const Save = (() => {
+  const KEY = 'solmar-city-save-v1';
 
-export function defaultSave() {
-  return {
-    cash: 150,
-    missionsDone: 0,
-    doubloons: [],
-    raceBest: {},
-    muted: false,
-    totalEarned: 0,
-  };
-}
-
-export function loadSave() {
-  const save = defaultSave();
-  try {
-    const raw = window.localStorage.getItem(SAVE_KEY);
-    if (!raw) return save;
-    const parsed = JSON.parse(raw);
-    if (typeof parsed.cash === 'number') save.cash = parsed.cash;
-    if (typeof parsed.missionsDone === 'number') {
-      save.missionsDone = Math.max(0, Math.min(5, parsed.missionsDone));
-    }
-    if (Array.isArray(parsed.doubloons)) {
-      save.doubloons = parsed.doubloons.filter(
-        (i) => Number.isInteger(i) && i >= 0 && i < CFG.doubloonCount,
-      );
-    }
-    if (parsed.raceBest && typeof parsed.raceBest === 'object') save.raceBest = parsed.raceBest;
-    if (typeof parsed.muted === 'boolean') save.muted = parsed.muted;
-    if (typeof parsed.totalEarned === 'number') save.totalEarned = parsed.totalEarned;
-  } catch (e) {
-    // Corrupt or unavailable storage: play with a fresh save.
+  function saveGame() {
+    try {
+      const data = {
+        version: 1,
+        cash: G.cash,
+        respect: G.respect,
+        standing: G.standing,
+        missionsDone: G.missionsDone,
+        crew: G.crew,
+        player: {
+          x: G.player.x, y: G.player.y, hp: G.player.hp, armor: G.player.armor,
+          owned: G.player.owned, ammo: G.player.ammo, weapon: G.player.weapon,
+        },
+        car: G.player.car ? { model: G.player.car.model, color: G.player.car.color, upgrade: G.player.car.upgrade, hp: G.player.car.hp } : null,
+        racesBest: G.racesBest,
+        collectibles: G.collectibles,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(KEY, JSON.stringify(data));
+      return true;
+    } catch (e) { return false; }
   }
-  return save;
-}
 
-export function saveGame(save) {
-  try {
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-  } catch (e) {
-    // Storage refused: ignore.
+  function loadGame() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || data.version !== 1) return null;
+      return data;
+    } catch (e) { return null; }
   }
-}
+
+  function hasSave() { return loadGame() !== null; }
+
+  function applySave(data) {
+    G.cash = data.cash || 0;
+    G.respect = data.respect || 0;
+    G.standing = data.standing || {};
+    G.missionsDone = data.missionsDone || [];
+    G.crew = data.crew || { maya: false, ghost: false, lou: false };
+    if (data.player) {
+      G.player.x = data.player.x; G.player.y = data.player.y;
+      G.player.hp = data.player.hp; G.player.armor = data.player.armor || 0;
+      G.player.owned = data.player.owned || ['fists', 'pistol'];
+      G.player.ammo = data.player.ammo || { pistol: 120 };
+      G.player.weapon = data.player.weapon || 'pistol';
+    }
+    if (data.car) {
+      const car = Vehicles.makeCar(data.car.model, G.player.x + 40, G.player.y, 0, { driver: null, color: data.car.color, upgrade: data.car.upgrade });
+      car.hp = data.car.hp || 100;
+      G.cars.push(car);
+    }
+    G.racesBest = data.racesBest || {};
+    G.collectibles = data.collectibles || 0;
+  }
+
+  function clearSave() {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+  }
+
+  return { saveGame, loadGame, hasSave, applySave, clearSave, KEY };
+})();
