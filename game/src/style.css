@@ -1,0 +1,319 @@
+/* Solmar City 3D — HUD, menus and start screen. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0b1220;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  color: #f8fafc;
+}
+
+#game-canvas, #game-canvas canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- HUD ---------- */
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  z-index: 10;
+}
+
+.panel {
+  background: rgba(8, 15, 30, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 8px 10px;
+  backdrop-filter: blur(2px);
+}
+
+/* Top-left: wanted, cash, rank, health. */
+#hud-top-left {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 250px;
+}
+.stars { font-size: 26px; letter-spacing: 3px; color: #facc15; line-height: 1; }
+.stars.warm { color: #fb923c; }
+.stars.hot { color: #ef4444; }
+#hud-cash { font-size: 26px; font-weight: 800; color: #4ade80; line-height: 1.15; }
+#hud-rank-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px; }
+#hud-rank { font-size: 15px; font-weight: 800; letter-spacing: 1px; color: #fbbf24; }
+#hud-rp { font-size: 11px; color: #cbd5e1; }
+.bar { height: 7px; background: rgba(255, 255, 255, 0.18); border-radius: 4px; margin-top: 3px; overflow: hidden; }
+.bar > div { height: 100%; border-radius: 4px; }
+#hud-rp-bar { background: linear-gradient(90deg, #f59e0b, #facc15); }
+#hud-hp-bar { background: #22c55e; }
+#hud-armor-bar { background: #38bdf8; }
+#hud-hp-text { font-size: 11px; color: #e2e8f0; margin-top: 3px; font-weight: 600; }
+
+/* Top-right: minimap + location. */
+#hud-top-right {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 210px;
+  text-align: right;
+}
+#minimap {
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+#hud-location { font-size: 14px; font-weight: 800; margin-top: 5px; }
+#hud-standing { font-size: 11px; color: #cbd5e1; }
+#hud-standing-bar { background: #38bdf8; }
+
+/* Left-middle: mission tracker. */
+#hud-mission {
+  position: absolute;
+  top: 218px;
+  left: 12px;
+  width: 285px;
+  border-left: 4px solid #facc15;
+}
+#hud-mission-title { font-size: 15px; font-weight: 800; color: #fde68a; }
+#hud-mission-stage { font-size: 11px; font-weight: 700; color: #fbbf24; letter-spacing: 1px; }
+#hud-mission-objective { font-size: 14px; font-weight: 700; margin-top: 4px; line-height: 1.25; }
+#hud-mission-next { font-size: 12px; color: #a5f3fc; margin-top: 3px; }
+#hud-mission-meta { display: flex; justify-content: space-between; margin-top: 5px; font-size: 12px; }
+#hud-mission-timer { font-weight: 800; color: #fca5a5; font-size: 15px; }
+#hud-mission-giver { color: #cbd5e1; }
+
+/* Right-middle: Solmar PD dispatch. */
+#hud-dispatch {
+  position: absolute;
+  top: 268px;
+  right: 12px;
+  width: 300px;
+  border-left: 4px solid #38bdf8;
+}
+#hud-dispatch h3 { font-size: 13px; letter-spacing: 1px; color: #7dd3fc; margin-bottom: 5px; }
+.dispatch-row {
+  display: grid;
+  grid-template-columns: 74px 1fr auto 44px;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  padding: 2.5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.dispatch-call { font-weight: 800; }
+.dispatch-kind { color: #cbd5e1; font-size: 11px; }
+.dispatch-chip {
+  font-size: 10px;
+  font-weight: 800;
+  color: #0f172a;
+  padding: 1px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+.dispatch-dist { text-align: right; color: #e2e8f0; font-weight: 600; }
+
+/* Bottom-left: weapons + crew. */
+#hud-bottom-left {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 300px;
+}
+#hud-weapons { margin-bottom: 8px; }
+.weapon-slot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  padding: 2.5px 6px;
+  border-radius: 4px;
+  color: #cbd5e1;
+}
+.weapon-slot.active { background: rgba(245, 158, 11, 0.35); color: #fff; font-weight: 700; }
+.weapon-key {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  font-size: 11px; font-weight: 800;
+}
+.weapon-name { flex: 1; }
+.weapon-ammo { font-weight: 700; color: #fde68a; }
+.crew-card { display: flex; gap: 8px; align-items: center; padding: 3px 0; }
+.crew-face {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #0f172a;
+  flex-shrink: 0;
+}
+.crew-info { display: flex; flex-direction: column; font-size: 11px; line-height: 1.25; }
+.crew-info b { font-size: 12px; }
+.crew-info i { font-style: normal; color: #a5f3fc; }
+.crew-info em { font-style: normal; color: #4ade80; font-weight: 700; }
+
+/* Bottom-centre: dialogue. */
+#hud-dialogue {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: 460px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-left: 4px solid #f472b6;
+}
+#hud-dialogue-face {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; color: #0f172a;
+  flex-shrink: 0;
+}
+#hud-dialogue-name { font-size: 14px; font-weight: 800; }
+#hud-dialogue-role { font-size: 11px; color: #f9a8d4; margin-left: 6px; }
+#hud-dialogue-line { font-size: 13px; line-height: 1.35; margin-top: 2px; }
+
+/* Bottom-right: speedometer + radio. */
+#hud-bottom-right {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 240px;
+  text-align: right;
+}
+#hud-speed-row { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+#hud-speed { font-size: 46px; font-weight: 900; line-height: 0.95; }
+#hud-speed-unit { font-size: 15px; font-weight: 700; color: #cbd5e1; }
+#hud-car { font-size: 14px; font-weight: 800; letter-spacing: 1px; }
+#hud-condition { font-size: 11px; color: #cbd5e1; }
+#hud-condition-bar { background: #4ade80; }
+#hud-radio {
+  font-size: 12px;
+  color: #fde68a;
+  margin-top: 5px;
+  font-weight: 600;
+}
+
+/* Toast. */
+#hud-toast {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(8, 15, 30, 0.85);
+  border: 1px solid #facc15;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fde68a;
+  z-index: 20;
+}
+
+#hud-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-bottom: -2px;
+}
+
+/* ---------- Start screen ---------- */
+
+#start-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(10, 10, 40, 0.55) 0%, rgba(60, 10, 40, 0.65) 100%);
+  text-align: center;
+}
+#start-screen h1 {
+  font-size: 84px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  background: linear-gradient(180deg, #fde68a, #f97316 55%, #ec4899);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  line-height: 0.95;
+}
+#start-screen h2 { font-size: 22px; letter-spacing: 8px; color: #a5f3fc; margin-top: 6px; }
+#start-screen p.tagline { font-size: 16px; color: #e2e8f0; margin-top: 14px; max-width: 560px; }
+#start-screen .press { font-size: 20px; font-weight: 800; color: #facc15; margin-top: 26px; animation: pulse 1.4s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+#start-screen .controls {
+  margin-top: 22px;
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.7;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 12px 22px;
+  border-radius: 10px;
+}
+#start-screen .controls b { color: #fff; }
+
+/* ---------- Menus ---------- */
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 18, 0.82);
+}
+.menu-box {
+  width: 560px;
+  max-height: 86vh;
+  overflow-y: auto;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 22px 26px;
+}
+.menu-box h2 { font-size: 24px; margin-bottom: 12px; color: #facc15; }
+.menu-box h3 { font-size: 15px; margin: 14px 0 6px; color: #7dd3fc; }
+.menu-box p, .menu-box li { font-size: 14px; line-height: 1.55; color: #e2e8f0; }
+.menu-box ul { margin-left: 18px; }
+.menu-box .close-hint { margin-top: 16px; font-size: 12px; color: #94a3b8; }
+.mission-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.mission-row.done { color: #4ade80; }
+.mission-row.current { color: #facc15; font-weight: 700; }
+
+/* ---------- Error box (headless checks) ---------- */
+
+#err {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 99;
+  background: rgba(127, 29, 29, 0.95);
+  color: #fff;
+  font: 12px monospace;
+  white-space: pre-wrap;
+  padding: 8px;
+  max-width: 60%;
+}

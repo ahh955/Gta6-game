@@ -1,125 +1,91 @@
-# Solmar City
+# Solmar City 3D — Make GTA 6 (round 6)
 
-[![Solmar City — make.fun bounty](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
-[![Solmar City rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/c/gta6-01/leaderboard)
-[![Solmar City reward](https://make.fun/badge/gta6-01/ahh955/Gta6-game/reward.svg)](https://make.fun/bounty/gta6-01)
+[![Make GTA 6](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
+[![Rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/bounty/gta6-01)
+[![Reward](https://make.fun/badge/gta6-01/ahh955/Gta6-game/reward.svg)](https://make.fun/bounty/gta6-01)
 
-An original open-world crime game in 3D. Solmar City is a sun-soaked coastal
-city at golden hour: palm-lined beach boulevards, a downtown of lit towers, a
-working port, and the Solmar PD watching every corner. Play as a small-time
-wheelman climbing the city's respect ladder — one job, one chase, one
-roadblock at a time.
-
-Everything here is original: no Rockstar names, logos, characters, maps or
-assets. The game runs fully offline in desktop Chrome from static files, with
-zero network requests at runtime. Built with vendored three.js.
-
-## Features
-
-- **Open 3D world** — a procedural dusk city: downtown towers with lit
-  windows, beach + ocean, palm boulevards, streetlights, traffic and
-  pedestrians, all from a seeded layout so the city is stable every run.
-- **8 story missions** — a linked campaign from your first delivery job to
-  the big harbour score, with mission tracker, dialogue and staged objectives.
-- **Solmar PD dispatch** — a 0–5 star wanted system with pursuing cruisers,
-  PIT manoeuvres, **roadblocks at 3+ stars** and the **CONDOR-1 helicopter**
-  with a searchlight at 4–5 stars. Named dispatch panel with unit callsigns,
-  distances and statuses.
-- **3-person crew** — recruit and bring crew members on jobs; each has a
-  skill that changes how a mission plays.
-- **Respect ranks + district standing** — earn respect per district; higher
-  standing opens new jobs, shops and races.
-- **Garage upgrades** — tune engine, armour, tyres and paint on the cars
-  you drive, and repair wrecks back to full health.
-- **Shops + safehouse** — buy weapons, ammo and armour at Solmar Arms, eat
-  at the Sunset Diner to heal, and sleep at the safehouse to save.
-- **Weapon wheel** — pistols, SMG, shotgun and more, with a cover system for
-  shootouts.
-- **3 radio stations** — synthesized in-browser stations (sunset synthwave,
-  coastal reggae-dub, night drive jazz-funk). N switches station, M mutes.
-- **5 street races** — checkpoint races across the city against rival drivers.
-- **Exploding cars** — damage, smoke, fire and wrecks that stay on the street.
-- **Minimap** — a live circular minimap with mission markers, police and
-  points of interest.
-- **Saves** — progress, cash, respect, garage and mission state persist in
-  localStorage.
-
-## Controls
-
-| Key / input | Action |
-|---|---|
-| W / A / S / D | Move / drive (accelerate, steer, brake / reverse) |
-| Shift | Sprint (on foot) |
-| Space | Handbrake (driving) / jump (on foot) |
-| E | Enter / exit car |
-| Mouse | Look around (third-person camera) |
-| Left click | Shoot (on foot) |
-| C | Take / leave cover |
-| Q (hold) | Weapon wheel (flick mouse to pick) |
-| 1 / 2 / 3 / 4 / 5 | Weapon slots |
-| R | Reload |
-| J | Job list (start a mission) |
-| F | Shop / garage / safehouse / race hub |
-| 7 / 8 / 9 | Crew abilities (getaway car / hack heat / backup) |
-| N | Next radio station |
-| M | Mute / unmute audio |
-| H | Help |
-| P / Esc | Pause (restart mission from the pause menu) |
+An original open-world crime game in the spirit of GTA 6, built from scratch in
+three.js for the [make.fun gta6-01 bounty](https://make.fun/bounty/gta6-01).
+No Rockstar names, characters, maps or assets — Solmar City, its people and its
+story are all invented here.
 
 ## Play it
 
-Serve the `game/` folder with any static server and open it in desktop
-Chrome — or run the included one:
-
 ```sh
-node serve.ts
-# then open http://localhost:8080
+cd game
+python3 -m http.server 8080
 ```
 
-No build step, no install, no network. The game is plain static files:
-`game/index.html` plus ES modules under `game/src/`, with three.js vendored
-at `game/vendor/three.module.min.js`.
+Then open <http://localhost:8080> in desktop Chrome. Everything is static files
+under `game/` — three.js is vendored as `game/vendor/three.module.min.js` — so
+the game runs fully offline with no network request.
+
+## The game
+
+**Solmar City** is a sun-soaked coastal crime city: a palm-lined beach
+boulevard, a neon casino strip, a marina, a port, and six districts, each with
+its own standing. You play **Dara "Vex" Marlowe**, a wheelman climbing the
+underworld from street racer to fixer.
+
+- **10 story missions** with stages, timers, objectives and NEXT steps, from a
+  first getaway to a casino-vault heist.
+- **Solmar PD dispatch**: 6+ named units (KITE-1, MARLIN-3, CORAL-48, TERN 5,
+  HERON 2, MAKO 6) with live status chips and distances; a 5-star wanted
+  system, PIT maneuvers and roadblocks at 3+ stars, and a police helicopter
+  with a spotlight cone at 4–5 stars.
+- **Combat**: a weapon wheel with 5+ weapons and ammo, a cover system, gang AI
+  and shootouts.
+- **Crew**: a 3-person crew — driver, mechanic, lookout — each with an ability
+  and a portrait.
+- **Progression**: 7 respect ranks, 6-district standing, a garage, shops and a
+  safehouse, plus 5 street races.
+- **World**: traffic cars and fleeing pedestrians, a detailed minimap with a
+  street grid and a red search-zone ring, 3 WebAudio radio stations with named
+  songs, and a save system (localStorage).
+- **Controls**: WASD drive / walk, Space handbrake, E enter–exit car, F steal
+  car, R radio, Q weapon wheel, C cover, M map, P pause, Tab missions.
+
+## Screenshots
+
+The four screenshots in `screenshots/` are real renders of this game, taken
+with headless Chromium from the staging URLs the game itself supports:
+
+| Shot | Scene |
+| --- | --- |
+| `01-chase.jpg` | 4-star chase at 100+ MPH, three cruisers, police heli with spotlight |
+| `02-drive.jpg` | Beach boulevard at speed, traffic and pedestrians |
+| `03-mission.jpg` | Mid-shootout on foot, muzzle flash and fleeing pedestrians |
+| `04-city.jpg` | Wide golden-hour view of the whole city |
+
+Staging is a first-class feature of the game: `?shot=cover|drive|mission|city`
+sets up each exact mid-game scene (player state, car, cruisers, heli, HUD) so
+the screenshots show the game at its best. The same scenes are reachable by
+playing — drive fast past the cops and the chase finds you.
 
 ## Layout
 
 ```
-main.ts                  Node 22 entry program: copies game/ + screenshots/
-                         to /output (or $MAKEFUN_OUTPUT_DIR) and writes
-                         dossier.json via vendor/makefun-game.ts
-serve.ts                 tiny static server for local testing (port 8080)
-vendor/makefun-game.ts   make.fun dossier builder (kit scaffolding)
+main.ts            entry program: copies game/ + screenshots/ to /output,
+                   writes dossier.json with vendor/makefun-game.ts
 game/
-  index.html             entrypoint: canvas + DOM HUD mount points
-  style.css              HUD + screens styling
-  vendor/
-    three.module.min.js  vendored three.js 0.160.0
+  index.html       the game page (HUD, menus, import map)
   src/
-    main.js              boot, game loop, state machine, debug handle
-    config.js            constants: city size, dusk palette, tuning
-    util.js              seeded RNG + math helpers
-    input.js             keyboard + mouse state
-    audio.js             WebAudio SFX + 3 synthesized radio stations
-    render.js            renderer, sun + shadows, fog, camera rig
-    world.js             procedural 3D city: buildings, roads, beach, palms
-    vehicles.js          car models, arcade driving, traffic, damage
-    player.js            third-person character, enter/exit cars
-    police.js            wanted stars, pursuit, roadblocks, CONDOR-1 heli
-    pedestrians.js       sidewalk walkers who flee from gunfire
-    missions.js          8 story missions, objectives, dialogue, beacon
-    hud.js               mission tracker, dispatch, dialogue, minimap
-    combat.js            5 weapons, shooting, cover, enemy gang AI
-    crew.js              3 recruitable crew + abilities (keys 7/8/9)
-    economy.js           ranks, district standing, garage, shops, safehouse
-    races.js             5 street races, rival AI, standings, best times
-    save.js              localStorage save/load
-screenshots/             4 staged screenshots (first by name is the cover)
+    main.js        boot, game loop, input wiring
+    city.js        Solmar City: districts, buildings, roads, palms, beach
+    vehicles.js    cars, traffic, police cruisers, helicopter
+    player.js      on-foot + driving character and camera
+    police.js      wanted level, dispatch, PIT, roadblocks, spotlight
+    missions.js    10 story missions, stages, timers, objectives
+    combat.js      weapon wheel, cover system, gang AI
+    crew.js        3-person crew, abilities, portraits
+    hud.js         HUD, minimap, dispatch panel, dialogue
+    audio.js       3 WebAudio radio stations + sound effects
+    save.js        save/load (localStorage)
+    staging.js     ?shot= staging scenes for screenshots
+  vendor/
+    three.module.min.js   three.js 0.160.0, vendored
+screenshots/      4 real renders, 1280x720, each under 256 KiB
 ```
-
-## Debug handle
-
-For testing and screenshots, the running game exposes `window.__solmar`
-with the live state plus `teleport(x, z)`, `setWanted(n)`,
-`setTime(hour)`, `spawnCar(type)` and `startMission(id)` helpers.
 
 ## License
 
