@@ -1,28 +1,131 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solmar City — Open-World Crime Game</title>
-<link rel="stylesheet" href="style.css">
+<title>Solmar City — open-world crime game</title>
+<link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<canvas id="game" width="1280" height="720"></canvas>
-<div id="fallback"></div>
-<script src="src/util.js"></script>
-<script src="src/audio.js"></script>
-<script src="src/city.js"></script>
-<script src="src/vehicles.js"></script>
-<script src="src/pedestrians.js"></script>
-<script src="src/police.js"></script>
-<script src="src/combat.js"></script>
-<script src="src/crew.js"></script>
-<script src="src/economy.js"></script>
-<script src="src/save.js"></script>
-<script src="src/races.js"></script>
-<script src="src/missions.js"></script>
-<script src="src/hud.js"></script>
-<script src="src/game.js"></script>
-<script src="src/main.js"></script>
+<canvas id="game" aria-label="Solmar City: a 3D open-world crime game. Drive, explore the city, and stay ahead of the Solmar PD."></canvas>
+
+<!-- ============ HUD (Builder B fills these mounts) ============ -->
+<div id="hud" class="hidden">
+  <!-- top-left: wanted + district -->
+  <div id="hud-top-left">
+    <div id="wanted-stars" aria-label="Wanted level"></div>
+    <div id="bust-meter" class="hidden"><span>BUST</span><div id="bust-bar"><div id="bust-fill"></div></div></div>
+    <div id="district-name">Downtown Solmar</div>
+    <div id="district-standing"></div>
+  </div>
+  <!-- top-right: cash + respect -->
+  <div id="hud-top-right">
+    <div id="cash-display">$0</div>
+    <div id="respect-display">
+      <span id="respect-rank">NOBODY</span>
+      <div id="respect-bar"><div id="respect-fill"></div></div>
+    </div>
+  </div>
+  <!-- left: mission tracker -->
+  <div id="mission-tracker">
+    <div id="mission-title"></div>
+    <div id="mission-stage"></div>
+    <div id="mission-timer"></div>
+    <ul id="mission-objectives"></ul>
+  </div>
+  <!-- left, under tracker: crew status -->
+  <div id="crew-status"></div>
+  <!-- top-centre: race status -->
+  <div id="race-status" class="hidden"></div>
+  <!-- right: Solmar PD dispatch panel -->
+  <div id="dispatch-panel" class="hidden">
+    <div class="dispatch-header">SOLMAR PD DISPATCH</div>
+    <ul id="dispatch-units"></ul>
+  </div>
+  <!-- bottom-left: minimap -->
+  <div id="minimap-wrap">
+    <canvas id="minimap" width="180" height="180"></canvas>
+    <div id="radio-display"><span id="radio-station"></span><span id="radio-track"></span></div>
+  </div>
+  <!-- bottom-right: speedometer + vehicle -->
+  <div id="speedo-wrap">
+    <div id="vehicle-name"></div>
+    <div id="speedo"><span id="speed-value">0</span><span id="speed-unit">MPH</span></div>
+    <div id="vehicle-condition"><div id="condition-fill"></div></div>
+  </div>
+  <!-- bottom-centre: weapon slots -->
+  <div id="weapon-slots"></div>
+  <!-- centre-bottom: dialogue box -->
+  <div id="dialogue-box" class="hidden">
+    <div id="dialogue-portrait"></div>
+    <div id="dialogue-body">
+      <div id="dialogue-speaker"></div>
+      <div id="dialogue-text"></div>
+    </div>
+  </div>
+  <!-- centre: interaction + notices -->
+  <div id="interaction-prompt" class="hidden"></div>
+  <div id="notice-banner" class="hidden"></div>
+  <div id="crosshair" class="hidden">+</div>
+</div>
+
+<!-- ============ Screens ============ -->
+<div id="title-screen" class="screen">
+  <div class="title-logo">SOLMAR<span>CITY</span></div>
+  <div class="title-tag">Golden hour. Bad decisions. One way out.</div>
+  <button id="btn-start" class="big-btn">START ENGINE</button>
+  <button id="btn-continue" class="big-btn hidden">CONTINUE</button>
+  <div class="title-hint">WASD drive &amp; move &middot; E enter car &middot; H help &middot; click to play</div>
+  <div class="title-credit">An original game. No affiliation with any real city, person or publisher.</div>
+</div>
+
+<div id="pause-screen" class="screen hidden">
+  <div class="screen-title">PAUSED</div>
+  <div class="pause-stats" id="pause-stats"></div>
+  <button id="btn-resume" class="big-btn">RESUME</button>
+  <button id="btn-restart" class="big-btn">RESTART MISSION</button>
+  <button id="btn-quit-title" class="big-btn">QUIT TO TITLE</button>
+</div>
+
+<div id="help-screen" class="screen hidden">
+  <div class="screen-title">HOW TO PLAY</div>
+  <div class="help-grid">
+    <div><b>W A S D</b><span>Move / drive</span></div>
+    <div><b>SHIFT</b><span>Sprint</span></div>
+    <div><b>SPACE</b><span>Handbrake / jump</span></div>
+    <div><b>E</b><span>Enter / exit car</span></div>
+    <div><b>MOUSE</b><span>Look around</span></div>
+    <div><b>CLICK</b><span>Shoot (on foot)</span></div>
+    <div><b>C</b><span>Take / leave cover</span></div>
+    <div><b>Q (hold)</b><span>Weapon wheel</span></div>
+    <div><b>1–5</b><span>Weapons</span></div>
+    <div><b>R</b><span>Reload</span></div>
+    <div><b>J</b><span>Job list</span></div>
+    <div><b>F</b><span>Shop / garage / race hub</span></div>
+    <div><b>7 / 8 / 9</b><span>Crew abilities</span></div>
+    <div><b>N</b><span>Radio station</span></div>
+    <div><b>M</b><span>Mute</span></div>
+    <div><b>P / ESC</b><span>Pause</span></div>
+    <div><b>H</b><span>Close help</span></div>
+  </div>
+  <p class="help-note">Lose the cops by breaking line of sight. At 3 stars expect
+  roadblocks; at 4 stars CONDOR-1 joins the chase. Wrecked cars burn — get clear.</p>
+  <button id="btn-close-help" class="big-btn">CLOSE</button>
+</div>
+
+<div id="busted-screen" class="screen hidden">
+  <div class="screen-title busted">BUSTED</div>
+  <div class="screen-sub" id="busted-text">Solmar PD took you in. Bail posted — the city forgets, for a price.</div>
+  <button id="btn-busted-respawn" class="big-btn">WALK FREE</button>
+</div>
+
+<div id="wasted-screen" class="screen hidden">
+  <div class="screen-title wasted">WASTED</div>
+  <div class="screen-sub" id="wasted-text">The sunset keeps going without you.</div>
+  <button id="btn-wasted-respawn" class="big-btn">TRY AGAIN</button>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="./src/main.js"></script>
 </body>
 </html>

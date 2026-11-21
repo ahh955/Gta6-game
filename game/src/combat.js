@@ -1,363 +1,402 @@
-// Solmar City — combat: the weapon wheel (fists, pistol, SMG, shotgun,
-// rifle), bullets, rival-gang enemy AI and the cover system for shootouts.
+// Solmar City — combat: 5 weapons, mouse-aim shooting, weapon wheel (hold
+// Q), number keys, cover (C), enemy gang AI with health bars. Shooting
+// makes pedestrians flee and raises police heat; killing mission enemies
+// is how shootout stages are cleared.
+import * as THREE from '../vendor/three.module.min.js';
+import { buildPersonMesh } from './player.js';
+import { clamp, dist2D } from './util.js';
 
-const Combat = (() => {
-  const WEAPONS = {
-    fists:   { name: 'Fists',    slot: 1, damage: 12, range: 46, rate: 0.35, auto: false, spread: 0, ammo: Infinity, price: 0, kick: 0 },
-    pistol:  { name: 'P9 Pistol', slot: 2, damage: 22, range: 420, rate: 0.28, auto: false, spread: 0.03, ammo: 120, price: 250, kick: 1 },
-    smg:     { name: 'VK-9 SMG', slot: 3, damage: 14, range: 360, rate: 0.09, auto: true, spread: 0.09, ammo: 240, price: 900, kick: 0.6 },
-    shotgun: { name: 'M870 Scatter', slot: 4, damage: 16, range: 260, rate: 0.8, auto: false, spread: 0.22, ammo: 60, price: 1400, kick: 3, pellets: 6 },
-    rifle:   { name: 'AR-7 Rifle', slot: 5, damage: 34, range: 560, rate: 0.16, auto: true, spread: 0.04, ammo: 180, price: 2200, kick: 1.4 },
-  };
-  const ORDER = ['fists', 'pistol', 'smg', 'shotgun', 'rifle'];
+export const WEAPONS = [
+  { name: 'FISTS', damage: 15, rate: 0.45, mag: Infinity, range: 3, spread: 0, auto: false, ammo: false },
+  { name: 'PISTOL', damage: 25, rate: 0.28, mag: 12, range: 60, spread: 0.01, auto: false, ammo: true },
+  { name: 'SMG', damage: 16, rate: 0.09, mag: 30, range: 45, spread: 0.04, auto: true, ammo: true },
+  { name: 'SHOTGUN', damage: 14, rate: 0.85, mag: 6, range: 22, spread: 0.12, auto: false, ammo: true, pellets: 6 },
+  { name: 'RIFLE', damage: 45, rate: 0.5, mag: 20, range: 110, spread: 0.004, auto: false, ammo: true },
+];
 
+const GANG_COLORS = [
+  { shirt: 0x8e2f2f, pants: 0x1a1a1a, skin: 0xc98a5e },
+  { shirt: 0x2f4a8e, pants: 0x222226, skin: 0x8a5a3a },
+  { shirt: 0x3a7a2f, pants: 0x1a1a2a, skin: 0xe8b88a },
+];
+
+export function createCombat(scene) {
+  const owned = new Set([0, 1]); // fists + pistol from the start
+  const ammo = WEAPONS.map((w, i) => ({ mag: w.mag === Infinity ? Infinity : w.mag, reserve: i === 1 ? 60 : i === 0 ? 0 : 30 }));
+  let current = 1;
+  let cooldown = 0;
+  let reloading = 0;
+  let inCover = false;
+  let coverAt = null;
+  let wheelAccum = 0;
   let wheelOpen = false;
-  let shootCd = 0;
-  let meleeCd = 0;
+  const enemies = [];
+  const allies = [];
+  const tracers = [];
+  const raycaster = new THREE.Raycaster();
+  const center = new THREE.Vector2(0, 0);
+  let killCount = 0;
+  let shotsFired = 0;
 
-  function currentWeapon() { return WEAPONS[G.player.weapon] || WEAPONS.fists; }
-  function isWheelOpen() { return wheelOpen; }
-  function setWheelOpen(v) { wheelOpen = v; }
-  function ownedWeapons() { return G.player.owned; }
-
-  function selectWeapon(key) {
-    if (!WEAPONS[key]) return;
-    if (!G.player.owned.includes(key)) { HUD.toast(WEAPONS[key].name + ' not owned — buy it at Solmar Arms', '#ffb347'); return; }
-    G.player.weapon = key;
-    AudioSys.click();
+  function makeHealthBar() {
+    const g = new THREE.Group();
+    const bg = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.3, 0.16),
+      new THREE.MeshBasicMaterial({ color: 0x881111, transparent: true, opacity: 0.85 }),
+    );
+    const fg = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.3, 0.16),
+      new THREE.MeshBasicMaterial({ color: 0x7ee787 }),
+    );
+    fg.position.z = 0.01;
+    g.add(bg, fg);
+    g.position.y = 2.15;
+    g.userData.fg = fg;
+    return g;
   }
 
-  function cycleWeapon(dir) {
-    const owned = ORDER.filter(w => G.player.owned.includes(w));
-    const idx = owned.indexOf(G.player.weapon);
-    const next = owned[(idx + dir + owned.length) % owned.length];
-    if (next) G.player.weapon = next;
+  function spawnFighter(x, z, opts = {}) {
+    const c = GANG_COLORS[enemies.length % GANG_COLORS.length];
+    const mesh = buildPersonMesh(
+      opts.ally ? 0x2e8b8b : c.shirt, opts.ally ? 0x2a2a3a : c.pants, c.skin,
+    );
+    mesh.position.set(x, 0, z);
+    scene.add(mesh);
+    const bar = makeHealthBar();
+    mesh.add(bar);
+    const f = {
+      mesh, bar, health: 100, dead: false, deadT: 0,
+      heading: Math.atan2(0 - x, 0 - z),
+      shootT: 1 + Math.random(),
+      walkPhase: Math.random() * 6,
+      ally: !!opts.ally,
+      lifeT: opts.lifeT || Infinity,
+    };
+    (opts.ally ? allies : enemies).push(f);
+    return f;
   }
 
-  function playerAimAngle() {
-    // Mouse aim in world space; fallback to facing.
-    const cam = G.camera;
-    const wx = cam.x + G.mouse.x, wy = cam.y + G.mouse.y;
-    return Util.angleTo(G.player.x, G.player.y, wx, wy);
+  function spawnEnemies(list) {
+    const out = [];
+    for (const s of list) out.push(spawnFighter(s.x, s.z));
+    return out;
   }
 
-  function tryShoot(dt) {
-    shootCd -= dt; meleeCd -= dt;
-    const p = G.player;
-    if (p.inCar || p.dead) return;
-    const w = currentWeapon();
-    if (w === WEAPONS.fists) {
-      if (G.mouse.down && meleeCd <= 0) {
-        meleeCd = w.rate;
-        meleeAttack();
-      }
-      return;
+  function damageEnemy(e, dmg) {
+    if (!e || e.dead) return;
+    e.health -= dmg;
+    const frac = clamp(e.health / 100, 0, 1);
+    e.bar.userData.fg.scale.x = Math.max(0.001, frac);
+    e.bar.userData.fg.position.x = -(1 - frac) * 0.65;
+    if (e.health <= 0) {
+      e.dead = true;
+      e.deadT = 4;
+      e.mesh.rotation.z = Math.PI / 2;
+      e.mesh.position.y = 0.4;
+      e.bar.visible = false;
+      if (!e.ally) killCount++;
     }
-    const wantFire = w.auto ? G.mouse.down : (G.mouse.down && !G.mouse.consumed);
-    if (!wantFire || shootCd > 0) return;
-    const ammo = p.ammo[p.weapon] || 0;
-    if (ammo <= 0) {
-      HUD.toast('Out of ammo — buy more at Solmar Arms', '#ff5a3c');
-      AudioSys.click();
-      shootCd = 0.4;
-      G.mouse.consumed = true;
-      return;
+  }
+
+  function damagePlayer(ctx, n) {
+    let remaining = n;
+    if (ctx.game.armor > 0) {
+      const absorbed = Math.min(ctx.game.armor, remaining);
+      ctx.game.armor -= absorbed;
+      remaining -= absorbed;
     }
-    shootCd = w.rate;
-    G.mouse.consumed = true;
-    p.ammo[p.weapon] = ammo - 1;
-    const aim = playerAimAngle();
-    p.angle = aim;
+    if (remaining > 0) ctx.player.setHealth(ctx.player.health - remaining);
+  }
+
+  function shootTracer(from, to) {
+    const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: 0xffe9a8, transparent: true, opacity: 0.9,
+    }));
+    scene.add(line);
+    tracers.push({ line, life: 0.09 });
+  }
+
+  function fire(ctx) {
+    const w = WEAPONS[current];
+    const p = ctx.player;
+    if (!p.onFoot) return;
+    if (cooldown > 0 || reloading > 0) return;
+    if (w.ammo) {
+      if (ammo[current].mag <= 0) { reload(); return; }
+      ammo[current].mag--;
+    }
+    cooldown = w.rate;
+    shotsFired++;
+    ctx.audio.shot();
+    ctx.peds.fleeFrom(p.x, p.z, 45);
+    ctx.police.addHeat(0.1);
     const pellets = w.pellets || 1;
     for (let i = 0; i < pellets; i++) {
-      const a = aim + (Math.random() - 0.5) * 2 * w.spread;
-      const speed = 900;
-      G.bullets.push({
-        x: p.x + Math.cos(aim) * 16, y: p.y + Math.sin(aim) * 16,
-        vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-        life: w.range / speed, damage: w.damage, from: 'player', kind: p.weapon,
-      });
-    }
-    AudioSys.shot(p.weapon);
-    Vehicles.Particles.burst(p.x + Math.cos(aim) * 20, p.y + Math.sin(aim) * 20, 3, '#ffd23f', 120);
-    G.shake = Math.min(6, G.shake + w.kick * 0.4);
-    Police.addHeat(2);
-    Pedestrians.panicAt(p.x, p.y, 300);
-  }
-
-  function meleeAttack() {
-    const p = G.player;
-    const aim = playerAimAngle();
-    p.angle = aim;
-    AudioSys.crash();
-    const reach = 52;
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      if (Util.dist(p.x, p.y, e.x, e.y) < reach && Math.cos(Util.angleDiff(aim, Util.angleTo(p.x, p.y, e.x, e.y))) > 0.5) {
-        hurtEnemy(e, WEAPONS.fists.damage);
+      raycaster.setFromCamera(center, ctx.render.camera);
+      if (w.spread) {
+        raycaster.ray.direction.x += (Math.random() - 0.5) * w.spread;
+        raycaster.ray.direction.y += (Math.random() - 0.5) * w.spread;
+        raycaster.ray.direction.normalize();
       }
-    }
-    for (const c of G.cops) {
-      if (c.type === 'foot' && !c.dead && Util.dist(p.x, p.y, c.x, c.y) < reach) {
-        c.hp -= WEAPONS.fists.damage;
-        Police.addHeat(6);
-      }
-    }
-    for (const ped of G.peds) {
-      if (!ped.dead && Util.dist(p.x, p.y, ped.x, ped.y) < reach) {
-        ped.dead = true;
-        Police.addHeat(18);
-        Pedestrians.panicAt(p.x, p.y, 260);
-      }
-    }
-  }
-
-  function enemyShoot(x, y, tx, ty, damage, from) {
-    const a = Util.angleTo(x, y, tx, ty) + (Math.random() - 0.5) * 0.16;
-    const speed = 820;
-    G.bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: 0.7, damage, from, kind: 'pistol' });
-    AudioSys.shot('pistol');
-    Vehicles.Particles.burst(x, y, 2, '#ffd23f', 90);
-  }
-
-  function hurtPlayer(amount, source) {
-    const p = G.player;
-    if (p.dead || G.state !== 'play') return;
-    if (p.cover) amount *= 0.3; // cover absorbs most incoming fire
-    if (p.armor > 0) {
-      const absorbed = Math.min(p.armor, amount * 0.6);
-      p.armor -= absorbed;
-      amount -= absorbed;
-    }
-    p.hp -= amount;
-    G.shake = Math.min(8, G.shake + 3);
-    if (p.hp <= 0) {
-      p.hp = 0; p.dead = true;
-      G.state = 'wasted';
-      AudioSys.missionFail();
-    }
-  }
-
-  function hurtEnemy(e, damage) {
-    if (e.dead) return;
-    e.hp -= damage;
-    Vehicles.Particles.burst(e.x, e.y, 4, '#c94f4f', 90);
-    if (e.hp <= 0) {
-      e.dead = true;
-      Economy.addCash(15 + Math.floor(Math.random() * 30));
-      Economy.addRespect(4);
-      if (G.mission) Missions.onEnemyKilled(e);
-    }
-  }
-
-  function updateBullets(dt) {
-    for (let i = G.bullets.length - 1; i >= 0; i--) {
-      const b = G.bullets[i];
-      b.life -= dt;
-      b.x += b.vx * dt; b.y += b.vy * dt;
-      let hit = b.life <= 0;
-      if (!hit && City.collides(b.x, b.y, 2)) {
-        hit = true;
-        Vehicles.Particles.burst(b.x, b.y, 3, '#d8d0c0', 80);
-      }
-      // Cars block bullets and take damage.
-      if (!hit) {
-        for (const car of G.cars) {
-          if (car.wreck) continue;
-          const dx = b.x - car.x, dy = b.y - car.y;
-          const ca = Math.cos(-car.angle), sa = Math.sin(-car.angle);
-          const lx = dx * ca - dy * sa, ly = dx * sa + dy * ca;
-          if (Math.abs(lx) < car.def.len / 2 && Math.abs(ly) < car.def.wid / 2) {
-            hit = true;
-            if (b.from === 'player') Vehicles.damage(car, b.damage, 'player');
-            break;
+      const targets = [];
+      for (const e of enemies) if (!e.dead) targets.push(e.mesh);
+      for (const c of ctx.traffic.cars) targets.push(c.mesh);
+      for (const c of ctx.police.cruisers) targets.push(c.mesh);
+      for (const b of ctx.police.roadblocks) targets.push(b.mesh);
+      for (const ped of ctx.peds.peds) targets.push(ped.mesh);
+      const hits = raycaster.intersectObjects(targets, true);
+      const from = p.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+      let end = raycaster.ray.at(w.range, new THREE.Vector3());
+      if (hits.length && hits[0].distance < w.range) {
+        end = hits[0].point.clone();
+        const hit = hits[0].object;
+        // Walk up to the top-level group to identify what was hit.
+        let root = hit;
+        while (root.parent && root.parent !== scene) root = root.parent;
+        const enemy = enemies.find((e) => e.mesh === root);
+        if (enemy) {
+          damageEnemy(enemy, w.damage);
+        } else {
+          const car = [...ctx.traffic.cars, ...ctx.police.cruisers, ...ctx.police.roadblocks]
+            .find((c) => c.mesh === root);
+          if (car) {
+            car.damage(w.damage * 0.6);
+            if (car.wrecked) ctx.audio.explosion();
+          } else {
+            // Pedestrian hit: they run, and the cops notice.
+            ctx.peds.fleeFrom(p.x, p.z, 60);
+            ctx.police.addHeat(0.5);
           }
         }
       }
-      if (!hit && (b.from === 'player' || b.from === 'ally')) {
-        for (const e of G.enemies) {
-          if (!e.dead && Util.dist(b.x, b.y, e.x, e.y) < 13) { hurtEnemy(e, b.damage); hit = true; break; }
-        }
-        if (!hit) {
-          for (const c of G.cops) {
-            if (c.type === 'foot' && !c.dead && Util.dist(b.x, b.y, c.x, c.y) < 13) {
-              c.hp -= b.damage;
-              if (b.from === 'player') Police.addHeat(10);
-              hit = true; break;
-            }
-          }
-        }
-        if (!hit) {
-          const h = Police.getHeli();
-          if (h && Util.dist(b.x, b.y, h.x, h.y) < 30) { h.hp -= b.damage; hit = true; }
-        }
-        if (!hit && b.from === 'player') {
-          for (const ped of G.peds) {
-            if (!ped.dead && Util.dist(b.x, b.y, ped.x, ped.y) < 11) {
-              ped.dead = true;
-              Police.addHeat(18);
-              Pedestrians.panicAt(b.x, b.y, 300);
-              hit = true; break;
-            }
-          }
+      shootTracer(from, end);
+    }
+    // Fists: short-range swing instead of a raycast.
+    if (current === 0) {
+      for (const e of enemies) {
+        if (!e.dead && dist2D(p.x, p.z, e.mesh.position.x, e.mesh.position.z) < 3) {
+          damageEnemy(e, w.damage);
         }
       }
-      if (!hit && (b.from === 'enemy' || b.from === 'cop')) {
-        const p = G.player;
-        if (!p.dead && Util.dist(b.x, b.y, p.x, p.y) < (p.inCar ? 24 : 13)) {
-          if (p.inCar && p.car) Vehicles.damage(p.car, b.damage * 0.5, b.from);
-          else hurtPlayer(b.damage, b.from);
-          hit = true;
-        }
-        if (!hit) {
-          for (const a of Crew.getAllies()) {
-            if (!a.dead && Util.dist(b.x, b.y, a.x, a.y) < 13) { a.hp -= b.damage; if (a.hp <= 0) a.dead = true; hit = true; break; }
-          }
-        }
-      }
-      if (hit) G.bullets.splice(i, 1);
     }
   }
 
-  // --- Enemy AI (rival gang "Los Vipers") ---
-  function spawnEnemy(x, y, opts) {
-    opts = opts || {};
-    const e = {
-      x, y, angle: 0, hp: opts.hp || 60, speed: 150 + Math.random() * 40,
-      weapon: opts.weapon || 'pistol', shootCd: 0.5 + Math.random(),
-      state: opts.state || 'attack', tx: opts.tx || x, ty: opts.ty || y,
-      boss: !!opts.boss, name: opts.name || 'Viper', dead: false,
-    };
-    G.enemies.push(e);
-    return e;
+  function reload() {
+    const w = WEAPONS[current];
+    if (!w.ammo || reloading > 0) return;
+    if (ammo[current].mag >= w.mag || ammo[current].reserve <= 0) return;
+    reloading = 1.1;
   }
 
-  function updateEnemies(dt) {
-    const p = G.player;
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      const d = Util.dist(e.x, e.y, p.x, p.y);
-      const ang = Util.angleTo(e.x, e.y, p.x, p.y);
-      e.angle += Util.angleDiff(e.angle, ang) * Math.min(1, dt * 6);
-      // Advance until in range, strafe while shooting.
-      if (d > 260) {
-        const nx = e.x + Math.cos(e.angle) * e.speed * dt;
-        const ny = e.y + Math.sin(e.angle) * e.speed * dt;
-        if (!City.collides(nx, ny, 10)) { e.x = nx; e.y = ny; }
-      } else if (d < 130) {
-        e.x -= Math.cos(e.angle) * e.speed * 0.5 * dt;
-        e.y -= Math.sin(e.angle) * e.speed * 0.5 * dt;
-      }
-      e.shootCd -= dt;
-      if (d < 430 && e.shootCd <= 0 && !p.dead && G.state === 'play') {
-        e.shootCd = (e.weapon === 'smg' ? 0.5 : 1.0) + Math.random() * 0.7;
-        enemyShoot(e.x, e.y, p.x, p.y, e.boss ? 14 : 9, 'enemy');
-      }
-    }
-    G.enemies = G.enemies.filter(e => !e.dead || e.deathT < 999);
+  function finishReload() {
+    const w = WEAPONS[current];
+    const need = w.mag - ammo[current].mag;
+    const take = Math.min(need, ammo[current].reserve);
+    ammo[current].mag += take;
+    ammo[current].reserve -= take;
   }
 
-  // --- Cover system ---
-  function findCover() {
-    const p = G.player;
-    // Cover = a building wall or a car side within arm's reach.
-    for (const b of City.buildings) {
-      if (Util.dist(p.x, p.y, Util.clamp(p.x, b.x, b.x + b.w), Util.clamp(p.y, b.y, b.y + b.h)) < 26) return { kind: 'wall', x: p.x, y: p.y };
-    }
-    for (const car of G.cars) {
-      if (!car.wreck && Util.dist(p.x, p.y, car.x, car.y) < 40) return { kind: 'car', x: car.x, y: car.y };
-    }
-    return null;
-  }
-
-  function tryToggleCover() {
-    const p = G.player;
-    if (p.inCar) return;
-    if (p.cover) { p.cover = false; p.coverObj = null; return; }
-    const c = findCover();
-    if (c) {
-      p.cover = true; p.coverObj = c;
-      HUD.toast('In cover — incoming damage reduced 70%', '#7ec850');
+  function tryCover(ctx) {
+    const p = ctx.player;
+    if (inCover) { leaveCover(); return; }
+    if (!p.onFoot) return;
+    // Cover = a car within 4m, or a wall within 2.5m ahead.
+    const car = ctx.traffic.nearestCar(p.x, p.z, 4);
+    const aheadX = p.x + Math.sin(p.heading) * 2.5;
+    const aheadZ = p.z + Math.cos(p.heading) * 2.5;
+    const wall = ctx.world.isBlocked(aheadX, aheadZ);
+    if (car) {
+      const side = Math.atan2(p.x - car.x, p.z - car.z);
+      p.mesh.position.set(car.x + Math.sin(side) * 2.4, 0, car.z + Math.cos(side) * 2.4);
+      coverAt = { x: p.mesh.position.x, z: p.mesh.position.z };
+    } else if (wall) {
+      coverAt = { x: p.x, z: p.z };
     } else {
-      HUD.toast('No cover nearby — stand by a wall or car', '#ffb347');
+      ctx.showNotice('NO COVER NEARBY');
+      return;
     }
+    inCover = true;
+    p.mesh.scale.y = 0.8;
+    ctx.showNotice('IN COVER — C TO LEAVE');
   }
 
-  function drawEnemies(g) {
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      g.save();
-      g.translate(e.x, e.y);
-      g.fillStyle = 'rgba(0,0,0,0.25)';
-      g.beginPath(); g.ellipse(2, 3, 9, 5, 0, 0, Util.TAU); g.fill();
-      g.rotate(e.angle);
-      // Viper gang: purple jacket, gold chain dot.
-      g.fillStyle = e.boss ? '#5a1d8a' : '#7a2fd9';
-      g.beginPath(); g.arc(0, 0, e.boss ? 10 : 8, 0, Util.TAU); g.fill();
-      g.fillStyle = '#f2c89b';
-      g.beginPath(); g.arc(4, 0, 4.5, 0, Util.TAU); g.fill();
-      g.fillStyle = '#ffd23f';
-      g.fillRect(2, -1.5, 4, 3);
-      // Gun.
-      g.fillStyle = '#222';
-      g.fillRect(8, -1.5, 10, 3);
-      g.restore();
-      // Health bar for the boss.
-      if (e.boss) {
-        g.fillStyle = 'rgba(0,0,0,0.6)';
-        g.fillRect(e.x - 22, e.y - 26, 44, 6);
-        g.fillStyle = '#ff5a3c';
-        g.fillRect(e.x - 21, e.y - 25, 42 * Util.clamp(e.hp / 200, 0, 1), 4);
-        g.fillStyle = '#fff';
-        g.font = 'bold 10px Arial'; g.textAlign = 'center';
-        g.fillText(e.name.toUpperCase(), e.x, e.y - 30);
+  function leaveCover() {
+    inCover = false;
+    coverAt = null;
+  }
+
+  function updateFighter(f, dt, ctx, isAlly) {
+    if (f.dead) {
+      f.deadT -= dt;
+      if (f.deadT <= 0) {
+        scene.remove(f.mesh);
+        const arr = isAlly ? allies : enemies;
+        const i = arr.indexOf(f);
+        if (i >= 0) arr.splice(i, 1);
+      }
+      return;
+    }
+    if (isAlly) {
+      f.lifeT -= dt;
+      if (f.lifeT <= 0) {
+        scene.remove(f.mesh);
+        allies.splice(allies.indexOf(f), 1);
+        return;
+      }
+    }
+    // Face the camera with the health bar.
+    f.bar.lookAt(ctx.render.camera.position);
+    // Target: enemies hunt the player; allies hunt the nearest live enemy.
+    let tx, tz, targetEnemy = null;
+    if (isAlly) {
+      let best = 30;
+      for (const e of enemies) {
+        if (e.dead) continue;
+        const d = dist2D(f.mesh.position.x, f.mesh.position.z, e.mesh.position.x, e.mesh.position.z);
+        if (d < best) { best = d; targetEnemy = e; }
+      }
+      if (targetEnemy) { tx = targetEnemy.mesh.position.x; tz = targetEnemy.mesh.position.z; }
+      else { tx = ctx.player.x; tz = ctx.player.z; } // follow the player
+    } else {
+      tx = ctx.player.x; tz = ctx.player.z;
+    }
+    const d = dist2D(f.mesh.position.x, f.mesh.position.z, tx, tz);
+    const wantHeading = Math.atan2(tx - f.mesh.position.x, tz - f.mesh.position.z);
+    let dh = wantHeading - f.heading;
+    while (dh > Math.PI) dh -= Math.PI * 2;
+    while (dh < -Math.PI) dh += Math.PI * 2;
+    f.heading += clamp(dh, -5 * dt, 5 * dt);
+    f.mesh.rotation.y = f.heading;
+    // Advance until in range, then stand and shoot.
+    const stopDist = isAlly ? (targetEnemy ? 14 : 5) : 16;
+    if (d > stopDist) {
+      const sp = 4.2;
+      const nx = f.mesh.position.x + Math.sin(f.heading) * sp * dt;
+      const nz = f.mesh.position.z + Math.cos(f.heading) * sp * dt;
+      if (!ctx.world.isBlocked(nx, nz)) { f.mesh.position.x = nx; f.mesh.position.z = nz; }
+      f.walkPhase += sp * dt * 2.2;
+      const swing = Math.sin(f.walkPhase) * 0.5;
+      const u = f.mesh.userData;
+      u.legL.rotation.x = swing; u.legR.rotation.x = -swing;
+      u.armL.rotation.x = -swing * 0.8; u.armR.rotation.x = swing * 0.8;
+    }
+    // Shoot.
+    const inRange = isAlly ? !!targetEnemy : d < 32;
+    if (inRange) {
+      f.shootT -= dt;
+      if (f.shootT <= 0) {
+        f.shootT = 1.4 + Math.random() * 0.9;
+        const from = f.mesh.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+        const to = isAlly
+          ? targetEnemy.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0))
+          : ctx.player.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
+        shootTracer(from, to);
+        ctx.audio.shot();
+        if (isAlly) {
+          if (Math.random() < 0.6) damageEnemy(targetEnemy, 22);
+        } else {
+          let hitChance = 0.55 - Math.max(0, d - 12) * 0.012;
+          if (inCover) hitChance *= 0.45;
+          if (!ctx.player.onFoot) hitChance *= 0.5;
+          if (Math.random() < hitChance) {
+            if (ctx.player.vehicle) ctx.player.vehicle.damage(4);
+            else damagePlayer(ctx, 5 + Math.random() * 4);
+            ctx.showNotice('TAKING FIRE');
+          }
+        }
       }
     }
   }
 
-  function drawBullets(g) {
-    g.fillStyle = '#fff2a8';
-    for (const b of G.bullets) {
-      g.save();
-      g.translate(b.x, b.y);
-      g.rotate(Math.atan2(b.vy, b.vx));
-      g.fillRect(-5, -1, 10, 2);
-      g.restore();
+  function update(dt, ctx) {
+    cooldown = Math.max(0, cooldown - dt);
+    if (reloading > 0) {
+      reloading -= dt;
+      if (reloading <= 0) finishReload();
+    }
+    // Weapon switching: number keys 1-5.
+    for (let i = 0; i < 5; i++) {
+      if (ctx.input.wasPressed(`Digit${i + 1}`) && owned.has(i)) {
+        current = i; reloading = 0;
+      }
+    }
+    // Weapon wheel: hold Q, flick the mouse left/right to cycle.
+    wheelOpen = ctx.input.isDown('KeyQ');
+    if (wheelOpen) {
+      wheelAccum += ctx.input.mouseDX;
+      if (wheelAccum > 70) { wheelAccum = 0; cycle(1); }
+      else if (wheelAccum < -70) { wheelAccum = 0; cycle(-1); }
+    } else wheelAccum = 0;
+    if (ctx.input.wasPressed('KeyR')) reload();
+    if (ctx.input.wasPressed('KeyC')) tryCover(ctx);
+    if (!ctx.player.onFoot && inCover) leaveCover();
+    if (inCover) ctx.player.mesh.scale.y = 0.8;
+    else ctx.player.mesh.scale.y = 1;
+
+    const uiBusy = ctx.economy?.panelOpen || ctx.races?.panelOpen || ctx.hud?.dialogueActive();
+    if (!uiBusy && ctx.player.onFoot) {
+      const w = WEAPONS[current];
+      const wantFire = w.auto ? ctx.input.mouseDown : ctx.input.mouseDown && !fire._held;
+      fire._held = ctx.input.mouseDown;
+      if (wantFire) fire(ctx);
+    } else {
+      fire._held = ctx.input.mouseDown;
+    }
+
+    for (const e of [...enemies]) updateFighter(e, dt, ctx, false);
+    for (const a of [...allies]) updateFighter(a, dt, ctx, true);
+
+    for (let i = tracers.length - 1; i >= 0; i--) {
+      const t = tracers[i];
+      t.life -= dt;
+      t.line.material.opacity = Math.max(0, t.life / 0.09) * 0.9;
+      if (t.life <= 0) {
+        scene.remove(t.line);
+        t.line.geometry.dispose();
+        tracers.splice(i, 1);
+      }
     }
   }
 
-  function drawWeaponWheel(g, vw, vh) {
-    if (!wheelOpen) return;
-    const cx = vw / 2, cy = vh / 2, R = 120;
-    g.fillStyle = 'rgba(0,0,0,0.55)';
-    g.fillRect(0, 0, vw, vh);
-    g.fillStyle = 'rgba(20,20,28,0.92)';
-    g.beginPath(); g.arc(cx, cy, R + 34, 0, Util.TAU); g.fill();
-    g.strokeStyle = '#ffd23f'; g.lineWidth = 2;
-    g.stroke();
-    g.fillStyle = '#fff';
-    g.font = 'bold 16px Arial'; g.textAlign = 'center';
-    g.fillText('WEAPON WHEEL', cx, cy - R - 44);
-    g.font = '12px Arial'; g.fillStyle = '#bbb';
-    g.fillText('Click a weapon or press 1-5', cx, cy - R - 26);
-    ORDER.forEach((key, i) => {
-      const a = -Math.PI / 2 + (i / ORDER.length) * Util.TAU;
-      const x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
-      const owned = G.player.owned.includes(key);
-      const active = G.player.weapon === key;
-      g.fillStyle = active ? '#ffd23f' : (owned ? '#2f3a4a' : '#1a1a1a');
-      g.beginPath(); g.arc(x, y, 34, 0, Util.TAU); g.fill();
-      g.strokeStyle = active ? '#fff' : '#555'; g.lineWidth = 2; g.stroke();
-      g.fillStyle = active ? '#111' : (owned ? '#fff' : '#666');
-      g.font = 'bold 13px Arial';
-      g.fillText(WEAPONS[key].name, x, y - 2);
-      g.font = '11px Arial';
-      g.fillText(owned ? (key === 'fists' ? '∞' : (G.player.ammo[key] || 0) + ' ammo') : 'LOCKED', x, y + 14);
-      g.fillStyle = '#888';
-      g.font = '10px Arial';
-      g.fillText('[' + WEAPONS[key].slot + ']', x, y + 28);
-    });
+  function cycle(dir) {
+    const ownedList = WEAPONS.map((_, i) => i).filter((i) => owned.has(i));
+    const idx = ownedList.indexOf(current);
+    current = ownedList[(idx + dir + ownedList.length) % ownedList.length];
+    reloading = 0;
   }
 
-  return { WEAPONS, ORDER, currentWeapon, isWheelOpen, setWheelOpen, selectWeapon, cycleWeapon, playerAimAngle, tryShoot, enemyShoot, hurtPlayer, hurtEnemy, updateBullets, spawnEnemy, updateEnemies, tryToggleCover, findCover, drawEnemies, drawBullets, drawWeaponWheel };
-})();
+  return {
+    enemies, allies,
+    get current() { return current; },
+    get currentWeapon() { return WEAPONS[current]; },
+    get inCover() { return inCover; },
+    get reloading() { return reloading > 0; },
+    get killCount() { return killCount; },
+    get shotsFired() { return shotsFired; },
+    get wheelOpen() { return wheelOpen; },
+    owns(i) { return owned.has(i); },
+    giveWeapon(i) { owned.add(i); current = i; },
+    addAmmo(n) { ammo[current].reserve += n; },
+    ammoFor(i) { return ammo[i]; },
+    spawnEnemies, spawnFighter, damageEnemy, damagePlayer,
+    enemiesAlive() { return enemies.filter((e) => !e.dead).length; },
+    clearEnemies() {
+      for (const e of [...enemies]) { scene.remove(e.mesh); }
+      enemies.length = 0;
+      for (const a of [...allies]) { scene.remove(a.mesh); }
+      allies.length = 0;
+    },
+    leaveCover, update,
+    weaponState() {
+      return { owned: [...owned], current, ammo: ammo.map((a) => ({ ...a })) };
+    },
+    applyWeaponState(s) {
+      if (Array.isArray(s.owned)) { owned.clear(); s.owned.forEach((i) => owned.add(i)); }
+      if (typeof s.current === 'number' && owned.has(s.current)) current = s.current;
+      if (Array.isArray(s.ammo)) {
+        s.ammo.forEach((a, i) => { if (ammo[i] && a) Object.assign(ammo[i], a); });
+      }
+    },
+  };
+}

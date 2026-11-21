@@ -1,117 +1,90 @@
-// Solmar City — pedestrians: sidewalk walkers, beachgoers, panicked crowds
-// that flee gunfire and explosions.
+// Sidewalk pedestrians: low-poly walkers who stroll the sidewalks and flee
+// when shots are fired nearby (Builder B's combat calls fleeFrom()).
+// API: createPedestrians(scene, world, count, rng) -> { peds,
+//   update(dt, world), fleeFrom(x, z, radius), count }
+import { CONFIG } from './config.js';
+import { buildPersonMesh } from './player.js';
+import { RNG, dist2D } from './util.js';
 
-const Pedestrians = (() => {
-  const SHIRTS = ['#e8635a', '#5aa2e8', '#7ec850', '#e8c85a', '#b45ae8', '#5ad9c8', '#f2f2f2', '#ff9e5a'];
-  const PANTS = ['#2f3a4a', '#5a4a3a', '#3a5a7a', '#6a6a6a', '#7a3a5a'];
-  const SKINS = ['#f2c89b', '#d9a06b', '#a06b3f', '#8a5a30', '#e8b88a'];
+const SHIRTS = [0xd6457a, 0x45a8d6, 0x7ad645, 0xe8a33b, 0x8e7ad6, 0x3bc2b2, 0xd6d6d6];
+const PANTS = [0x2a2a3a, 0x3a3a2a, 0x1a2a3a, 0x4a2a2a];
+const SKINS = [0xc98a5e, 0x8a5a3a, 0xe8b88a, 0x6b4226];
 
-  function makePed(x, y) {
-    return {
-      x, y, angle: Math.random() * Util.TAU,
-      speed: 40 + Math.random() * 40,
-      shirt: SHIRTS[(Math.random() * SHIRTS.length) | 0],
-      pants: PANTS[(Math.random() * PANTS.length) | 0],
-      skin: SKINS[(Math.random() * SKINS.length) | 0],
-      state: 'walk', // walk | flee | cower
-      tx: x, ty: y, retarget: 0, panic: 0, dead: false, walkPhase: Math.random() * 10,
+export function createPedestrians(scene, world, count, rng = new RNG(CONFIG.seed + 7)) {
+  const peds = [];
+
+  function spawnPed() {
+    const mesh = buildPersonMesh(
+      rng.pick(SHIRTS), rng.pick(PANTS), rng.pick(SKINS),
+    );
+    // Start on a sidewalk edge next to a road.
+    const c = rng.pick(world.roadCenters);
+    const alongX = rng.chance(0.5);
+    const t = rng.float(-180, 180);
+    const x = alongX ? t : c + rng.pick([-10.5, 10.5]);
+    const z = alongX ? c + rng.pick([-10.5, 10.5]) : t;
+    mesh.position.set(x, 0, z);
+    scene.add(mesh);
+    const ped = {
+      mesh,
+      heading: rng.float(0, Math.PI * 2),
+      speed: rng.float(1.0, 1.8),
+      state: 'walk', // 'walk' | 'flee'
+      fleeT: 0,
+      walkPhase: rng.float(0, Math.PI * 2),
+      retargetT: rng.float(2, 8),
     };
+    peds.push(ped);
+    return ped;
   }
 
-  function spawnInitial(n) {
-    for (let i = 0; i < n; i++) {
-      // Peds walk on sidewalks beside roads and on the beachfront.
-      let x, y, tries = 0;
-      do {
-        x = Math.random() * City.W;
-        y = Math.random() * City.BEACH_Y;
-        tries++;
-      } while (tries < 12 && (City.collides(x, y, 10) || City.isRoad(x, y)));
-      G.peds.push(makePed(x, y));
-    }
-    // Beachgoers.
-    for (let i = 0; i < 10; i++) {
-      G.peds.push(makePed(100 + Math.random() * (City.W - 200), City.BEACH_Y + 30 + Math.random() * 120));
-    }
-  }
+  for (let i = 0; i < count; i++) spawnPed();
 
-  function panicAt(x, y, radius) {
-    for (const p of G.peds) {
-      if (Util.dist(p.x, p.y, x, y) < radius) {
-        p.state = 'flee';
-        p.panic = 3 + Math.random() * 3;
-        const a = Util.angleTo(x, y, p.x, p.y) + (Math.random() - 0.5);
-        p.tx = p.x + Math.cos(a) * 300;
-        p.ty = p.y + Math.sin(a) * 300;
+  function fleeFrom(x, z, radius = 40) {
+    for (const ped of peds) {
+      const d = dist2D(x, z, ped.mesh.position.x, ped.mesh.position.z);
+      if (d < radius) {
+        ped.state = 'flee';
+        ped.fleeT = 4 + (1 - d / radius) * 4;
+        ped.heading = Math.atan2(ped.mesh.position.x - x, ped.mesh.position.z - z);
       }
     }
   }
 
-  function update(dt) {
-    for (const p of G.peds) {
-      if (p.dead) continue;
-      p.walkPhase += dt * (p.state === 'flee' ? 14 : 7);
-      if (p.state === 'flee') {
-        p.panic -= dt;
-        if (p.panic <= 0) p.state = 'walk';
-      }
-      const speed = p.state === 'flee' ? p.speed * 2.4 : p.speed;
-      p.retarget -= dt;
-      if (p.retarget <= 0 || Util.dist(p.x, p.y, p.tx, p.ty) < 12) {
-        if (p.state === 'walk') {
-          const a = Math.random() * Util.TAU;
-          p.tx = p.x + Math.cos(a) * (80 + Math.random() * 160);
-          p.ty = p.y + Math.sin(a) * (80 + Math.random() * 160);
+  function update(dt, worldRef) {
+    for (const ped of peds) {
+      const m = ped.mesh;
+      if (ped.state === 'flee') {
+        ped.fleeT -= dt;
+        ped.speed = 5.2;
+        if (ped.fleeT <= 0) { ped.state = 'walk'; ped.speed = 1.4; }
+      } else {
+        ped.retargetT -= dt;
+        if (ped.retargetT <= 0) {
+          ped.retargetT = rng.float(3, 9);
+          // Drift along the sidewalk grid: prefer axis-aligned headings.
+          ped.heading = Math.floor(rng.float(0, 4)) * (Math.PI / 2) + rng.float(-0.3, 0.3);
         }
-        p.retarget = 2 + Math.random() * 3;
       }
-      const targetAngle = Util.angleTo(p.x, p.y, p.tx, p.ty);
-      p.angle += Util.angleDiff(p.angle, targetAngle) * Math.min(1, dt * 6);
-      const nx = p.x + Math.cos(p.angle) * speed * dt;
-      const ny = p.y + Math.sin(p.angle) * speed * dt;
-      if (!City.collides(nx, ny, 9)) { p.x = nx; p.y = ny; }
-      else { p.retarget = 0; }
-      p.x = Util.clamp(p.x, 10, City.W - 10);
-      p.y = Util.clamp(p.y, 10, City.WATER_Y - 10);
-    }
-    // Keep the streets populated near the player.
-    if (G.peds.filter(p => !p.dead).length < 34) {
-      const pt = City.randomRoadPoint(Math.random);
-      const px = pt.vertical ? pt.x + 70 : pt.x;
-      const py = pt.vertical ? pt.y : pt.y + 70;
-      if (!City.collides(px, py, 10)) G.peds.push(makePed(px, py));
+      const nx = m.position.x + Math.sin(ped.heading) * ped.speed * dt;
+      const nz = m.position.z + Math.cos(ped.heading) * ped.speed * dt;
+      if (worldRef.isBlocked(nx, nz)) {
+        // Turn around at a wall.
+        ped.heading += Math.PI + rng.float(-0.5, 0.5);
+      } else {
+        m.position.x = nx;
+        m.position.z = nz;
+      }
+      m.rotation.y = ped.heading;
+      ped.walkPhase += ped.speed * dt * 2.4;
+      const swing = Math.sin(ped.walkPhase) * 0.55;
+      const u = m.userData;
+      u.legL.rotation.x = swing;
+      u.legR.rotation.x = -swing;
+      u.armL.rotation.x = -swing * 0.8;
+      u.armR.rotation.x = swing * 0.8;
     }
   }
 
-  function draw(g) {
-    for (const p of G.peds) {
-      if (p.dead) continue;
-      g.save();
-      g.translate(p.x, p.y);
-      // Shadow.
-      g.fillStyle = 'rgba(0,0,0,0.25)';
-      g.beginPath(); g.ellipse(2, 3, 9, 5, 0, 0, Util.TAU); g.fill();
-      const swing = Math.sin(p.walkPhase) * 3;
-      g.rotate(p.angle);
-      // Legs (two small rects swinging).
-      g.fillStyle = p.pants;
-      g.fillRect(-4, -6 + swing * 0.4, 8, 4);
-      g.fillRect(-4, 2 - swing * 0.4, 8, 4);
-      // Body.
-      g.fillStyle = p.shirt;
-      g.beginPath(); g.arc(0, 0, 7, 0, Util.TAU); g.fill();
-      // Head.
-      g.fillStyle = p.skin;
-      g.beginPath(); g.arc(4, 0, 4.5, 0, Util.TAU); g.fill();
-      // Panic marker.
-      if (p.state === 'flee') {
-        g.fillStyle = '#ff2f2f';
-        g.font = 'bold 12px Arial'; g.textAlign = 'center';
-        g.fillText('!', -8, -8);
-      }
-      g.restore();
-    }
-  }
-
-  return { makePed, spawnInitial, panicAt, update, draw };
-})();
+  return { peds, update, fleeFrom, count: peds.length };
+}

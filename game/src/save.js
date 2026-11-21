@@ -1,69 +1,67 @@
-// Solmar City — localStorage save: progress, cash, respect, crew, garage,
-// weapons and race records survive between sessions.
+// Solmar City — localStorage save/load. Plain JSON, one key, versioned.
+// Saved: cash, respect, rank, missions completed, garage, district standing,
+// weapons + ammo, crew, race best times, player position, time of day.
+// No save exists on a fresh install; the title CONTINUE button stays hidden.
+const KEY = 'solmar-city-save-v1';
 
-const Save = (() => {
-  const KEY = 'solmar-city-save-v1';
+export function hasSave() {
+  try { return !!window.localStorage.getItem(KEY); } catch { return false; }
+}
 
-  function saveGame() {
-    try {
-      const data = {
-        version: 1,
-        cash: G.cash,
-        respect: G.respect,
-        standing: G.standing,
-        missionsDone: G.missionsDone,
-        crew: G.crew,
-        player: {
-          x: G.player.x, y: G.player.y, hp: G.player.hp, armor: G.player.armor,
-          owned: G.player.owned, ammo: G.player.ammo, weapon: G.player.weapon,
-        },
-        car: G.player.car ? { model: G.player.car.model, color: G.player.car.color, upgrade: G.player.car.upgrade, hp: G.player.car.hp } : null,
-        racesBest: G.racesBest,
-        collectibles: G.collectibles,
-        savedAt: Date.now(),
-      };
-      localStorage.setItem(KEY, JSON.stringify(data));
-      return true;
-    } catch (e) { return false; }
+export function saveGame(ctx) {
+  const { game, economy, combat, crew, races, player, render } = ctx;
+  const data = {
+    v: 1,
+    savedAt: Date.now(),
+    cash: game.cash,
+    respect: game.respect,
+    rank: game.rank,
+    armor: game.armor || 0,
+    completedMissions: ctx.missions ? ctx.missions.completed.slice() : [],
+    garage: economy ? economy.garageState() : {},
+    standing: economy ? economy.standingState() : {},
+    weapons: combat ? combat.weaponState() : null,
+    crew: crew ? crew.crewState() : {},
+    bestTimes: races ? races.bestTimesState() : {},
+    pos: { x: player.x, z: player.z },
+    timeOfDay: render ? render.timeOfDay : 18.4,
+  };
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(data));
+    return true;
+  } catch { return false; }
+}
+
+export function loadSave() {
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data && data.v === 1 ? data : null;
+  } catch { return null; }
+}
+
+// Apply a loaded save to the live game. Called from the CONTINUE button
+// before play starts; every field is optional so old saves degrade safely.
+export function applySave(ctx, data) {
+  if (!data) return;
+  const { game, economy, combat, crew, races, player, render } = ctx;
+  if (typeof data.cash === 'number') game.cash = data.cash;
+  if (typeof data.respect === 'number') game.respect = data.respect;
+  if (typeof data.rank === 'string') game.rank = data.rank;
+  if (typeof data.armor === 'number') game.armor = data.armor;
+  if (Array.isArray(data.completedMissions) && ctx.missions) {
+    ctx.missions.completed = data.completedMissions.slice();
   }
+  if (data.garage && economy) economy.applyGarageState(data.garage);
+  if (data.standing && economy) economy.applyStandingState(data.standing);
+  if (data.weapons && combat) combat.applyWeaponState(data.weapons);
+  if (data.crew && crew) crew.applyCrewState(data.crew);
+  if (data.bestTimes && races) races.applyBestTimesState(data.bestTimes);
+  if (data.pos && player) player.teleport(data.pos.x, data.pos.z);
+  if (typeof data.timeOfDay === 'number' && render) render.setTimeOfDay(data.timeOfDay);
+}
 
-  function loadGame() {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (!raw) return null;
-      const data = JSON.parse(raw);
-      if (!data || data.version !== 1) return null;
-      return data;
-    } catch (e) { return null; }
-  }
-
-  function hasSave() { return loadGame() !== null; }
-
-  function applySave(data) {
-    G.cash = data.cash || 0;
-    G.respect = data.respect || 0;
-    G.standing = data.standing || {};
-    G.missionsDone = data.missionsDone || [];
-    G.crew = data.crew || { maya: false, ghost: false, lou: false };
-    if (data.player) {
-      G.player.x = data.player.x; G.player.y = data.player.y;
-      G.player.hp = data.player.hp; G.player.armor = data.player.armor || 0;
-      G.player.owned = data.player.owned || ['fists', 'pistol'];
-      G.player.ammo = data.player.ammo || { pistol: 120 };
-      G.player.weapon = data.player.weapon || 'pistol';
-    }
-    if (data.car) {
-      const car = Vehicles.makeCar(data.car.model, G.player.x + 40, G.player.y, 0, { driver: null, color: data.car.color, upgrade: data.car.upgrade });
-      car.hp = data.car.hp || 100;
-      G.cars.push(car);
-    }
-    G.racesBest = data.racesBest || {};
-    G.collectibles = data.collectibles || 0;
-  }
-
-  function clearSave() {
-    try { localStorage.removeItem(KEY); } catch (e) {}
-  }
-
-  return { saveGame, loadGame, hasSave, applySave, clearSave, KEY };
-})();
+export function clearSave() {
+  try { window.localStorage.removeItem(KEY); } catch { /* private mode */ }
+}

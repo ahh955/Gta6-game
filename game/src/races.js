@@ -1,192 +1,273 @@
-// Solmar City — street races: five checkpoint races against three AI rivals,
-// started at the Midnight Mile Race Hub. Placement pays cash and respect.
+// Solmar City — street races: 5 checkpoint races from the Marina race hub.
+// 3 AI rival cars, live standings, best-time records in localStorage.
+// Press F at the hub to pick a race; finish first for the big payout.
+import * as THREE from '../vendor/three.module.min.js';
+import { createVehicle } from './vehicles.js';
+import { clamp, dist2D } from './util.js';
 
-const Races = (() => {
-  const RACES = [
-    { id: 'beach', name: 'Beachfront Sprint', district: 'marina', laps: 1,
-      checkpoints: [[300, 1900], [1100, 1900], [1900, 1900], [2700, 1900], [3100, 1500], [3100, 700]], prize: [800, 400, 150] },
-    { id: 'downtown', name: 'Downtown Dash', district: 'downtown', laps: 1,
-      checkpoints: [[2700, 300], [2700, 1100], [1900, 1100], [1900, 300], [3100, 300], [3100, 1100]], prize: [1000, 500, 200] },
-    { id: 'harbor', name: 'Harbor Loop', district: 'harbor', laps: 1,
-      checkpoints: [[3100, 1500], [2300, 1500], [2300, 1900], [3100, 1900], [2700, 1500]], prize: [1200, 600, 250] },
-    { id: 'hills', name: 'Vista Hills Climb', district: 'hills', laps: 1,
-      checkpoints: [[1500, 300], [700, 300], [700, 700], [1500, 700], [2300, 300], [2300, 700]], prize: [1500, 750, 300] },
-    { id: 'grand', name: 'Solmar Grand Tour', district: 'palms', laps: 1,
-      checkpoints: [[300, 300], [3100, 300], [3100, 1900], [300, 1900], [1500, 1100], [300, 1100]], prize: [2500, 1200, 500] },
-  ];
+export const HUB = { x: 160, z: -160, name: 'Marina Race Hub' };
 
-  const RIVALS = [
-    { name: 'Nina "Nitro" Vale', color: '#d94f9e', skill: 0.92 },
-    { name: 'Rex Dalton', color: '#2f6fe8', skill: 0.85 },
-    { name: 'Kiko Luna', color: '#7ec850', skill: 0.78 },
-  ];
+export const RACES = [
+  {
+    id: 'beach-sprint', name: 'Beach Sprint', laps: 1, prize: 500,
+    checkpoints: [[160, -80], [160, 0], [160, 80], [160, 160], [80, 160]],
+    rivals: ['coupe', 'sedan', 'coupe'],
+  },
+  {
+    id: 'downtown-loop', name: 'Downtown Loop', laps: 1, prize: 600,
+    checkpoints: [[0, -160], [-80, -160], [-160, -80], [-160, 80], [-80, 160], [0, 160], [80, 80]],
+    rivals: ['coupe', 'coupe', 'sedan'],
+  },
+  {
+    id: 'harbour-dash', name: 'Harbour Dash', laps: 1, prize: 700,
+    checkpoints: [[160, -80], [80, -80], [0, -80], [0, 0], [80, 0], [160, 0], [160, 80]],
+    rivals: ['coupe', 'coupe', 'coupe'],
+  },
+  {
+    id: 'old-town-climb', name: 'Old Town Climb', laps: 1, prize: 800,
+    checkpoints: [[-160, -80], [-160, 0], [-80, 0], [-80, 80], [-160, 80], [-160, 160], [-80, 160]],
+    rivals: ['coupe', 'sedan', 'truck'],
+  },
+  {
+    id: 'sunset-grand', name: 'Sunset Grand Tour', laps: 1, prize: 1500,
+    checkpoints: [[160, -80], [80, -160], [0, -160], [-160, -160], [-160, 160], [0, 160], [160, 160], [160, 80]],
+    rivals: ['coupe', 'coupe', 'coupe'],
+  },
+];
 
-  let active = null;
+const RIVAL_COLORS = [0x3b7ac2, 0x8e3bc2, 0xe8e8e8];
+const RIVAL_NAMES = ['Vex', 'Mira', 'Juno'];
 
-  function getActive() { return active; }
-  function byId(id) { return RACES.find(r => r.id === id); }
+export function createRaces(scene) {
+  const bestTimes = {};
+  let race = null; // active race state
+  let panel = null;
+  let marker = null;
+  let nearHub = false;
 
-  function startRace(id) {
-    const def = byId(id);
-    if (!def) return;
-    if (!G.player.inCar) { HUD.toast('You need a car to race — steal one first!', '#ffb347'); return; }
-    const start = def.checkpoints[0];
-    // Line everyone up at the first checkpoint.
-    G.player.car.x = start[0]; G.player.car.y = start[1] + 60;
-    G.player.car.angle = 0; G.player.car.speed = 0;
-    G.player.x = start[0]; G.player.y = start[1] + 60;
-    const rivals = RIVALS.map((r, i) => {
-      const car = Vehicles.makeCar('sport', start[0] - 60, start[1] + 30 + i * 30, 0, { driver: 'racer', color: r.color });
-      G.cars.push(car);
-      return { name: r.name, skill: r.skill, car, cp: 1, finished: false, finishTime: 0 };
-    });
-    active = { def, cp: 1, time: 0, countdown: 3, rivals, finished: false, place: 0 };
-    HUD.toast(def.name + ' — reach every checkpoint!', '#ffd23f');
-    HUD.radioLine('RACE CONTROL: ' + def.name + '. Green flag in 3...');
-    AudioSys.horn();
+  // Hub marker: checkered ring at the start line.
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(3, 4.2, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(HUB.x, 0.08, HUB.z);
+  scene.add(ring);
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.6, 0.6, 26, 8, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  beam.position.set(HUB.x, 13, HUB.z);
+  scene.add(beam);
+
+  function fmtTime(t) {
+    const m = Math.floor(t / 60);
+    const s = t - m * 60;
+    return `${m}:${s.toFixed(1).padStart(4, '0')}`;
   }
 
-  function update(dt) {
-    if (!active) return;
-    const r = active;
-    if (r.countdown > 0) {
-      r.countdown -= dt;
-      if (r.countdown <= 0) { HUD.toast('GO!', '#7ec850'); AudioSys.horn(); }
+  function openPanel(ctx) {
+    closePanel();
+    panel = document.createElement('div');
+    panel.id = 'shop-panel';
+    let html = `<div class="shop-title">${HUB.name.toUpperCase()}</div>`;
+    html += `<div class="shop-desc">Nadia Ferro runs the street scene. Pick a race — first across the line takes the pot. Bring a car; yours will do.</div>`;
+    for (const r of RACES) {
+      const best = bestTimes[r.id];
+      html += `<button class="shop-btn" data-race="${r.id}">${r.name} — ${r.checkpoints.length} checkpoints — $${r.prize}${best ? ` <b>Best ${fmtTime(best)}</b>` : ''}</button>`;
+    }
+    html += `<button class="shop-btn shop-close" data-race="close">Close (F)</button>`;
+    panel.innerHTML = html;
+    panel.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-race]');
+      if (!btn) return;
+      const id = btn.dataset.race;
+      if (id === 'close') { closePanel(); return; }
+      startRace(ctx, id);
+    });
+    document.body.appendChild(panel);
+  }
+
+  function closePanel() {
+    if (panel) { panel.remove(); panel = null; }
+  }
+
+  function checkpointMarker() {
+    if (marker) return marker;
+    const g = new THREE.Group();
+    const cyl = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.4, 3.4, 30, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x7ee787, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    cyl.position.y = 15;
+    const ground = new THREE.Mesh(
+      new THREE.RingGeometry(2.8, 3.6, 24),
+      new THREE.MeshBasicMaterial({ color: 0x7ee787, side: THREE.DoubleSide }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = 0.1;
+    g.add(cyl, ground);
+    scene.add(g);
+    marker = g;
+    return g;
+  }
+
+  function startRace(ctx, id) {
+    const def = RACES.find((r) => r.id === id);
+    if (!def) return;
+    closePanel();
+    if (!ctx.player.vehicle) {
+      ctx.showNotice('YOU NEED A CAR TO RACE');
       return;
     }
-    r.time += dt;
-    const p = G.player;
-    // Player checkpoints.
-    if (r.cp < r.def.checkpoints.length) {
-      const [cx, cy] = r.def.checkpoints[r.cp];
-      if (Util.dist(p.x, p.y, cx, cy) < 110) {
-        r.cp++;
-        AudioSys.pickup();
-        if (r.cp >= r.def.checkpoints.length) finishPlayer();
-        else HUD.toast('Checkpoint ' + r.cp + '/' + r.def.checkpoints.length, '#7ec850');
-      }
+    // Line the rivals up beside the player.
+    const rivals = def.rivals.map((type, i) => {
+      const car = createVehicle(scene, {
+        type, color: RIVAL_COLORS[i % RIVAL_COLORS.length],
+        x: ctx.player.x + (i - 1) * 4, z: ctx.player.z - 6,
+        heading: ctx.player.heading,
+      });
+      car._route = { alongX: true, center: 0, dir: 1, cruise: 0, parked: true };
+      ctx.traffic.cars.push(car);
+      return {
+        car, name: RIVAL_NAMES[i % RIVAL_NAMES.length],
+        cp: 0, stuckT: 0, skill: 0.82 + i * 0.05 + Math.random() * 0.06,
+      };
+    });
+    race = {
+      def, rivals, cp: 0, time: 0, finished: false,
+      standings: [{ name: 'YOU', cp: 0, dist: 0 }],
+    };
+    const m = checkpointMarker();
+    m.visible = true;
+    const [cx, cz] = def.checkpoints[0];
+    m.position.set(cx, 0, cz);
+    ctx.showNotice(`${def.name.toUpperCase()} — GO!`);
+  }
+
+  function finishRace(ctx, position) {
+    const def = race.def;
+    const payout = position === 1 ? def.prize : position === 2 ? Math.round(def.prize * 0.4) : position === 3 ? Math.round(def.prize * 0.2) : 0;
+    const t = race.time;
+    if (!bestTimes[def.id] || t < bestTimes[def.id]) {
+      bestTimes[def.id] = t;
+      ctx.showNotice(`NEW BEST — ${fmtTime(t)}`);
     }
-    // Rival AI: steer through checkpoints.
-    for (const rv of r.rivals) {
-      if (rv.finished) continue;
-      const cp = r.def.checkpoints[Math.min(rv.cp, r.def.checkpoints.length - 1)];
-      const car = rv.car;
-      const want = Util.angleTo(car.x, car.y, cp[0], cp[1]);
-      const steer = Util.clamp(Util.angleDiff(car.angle, want) * 2.4, -1, 1);
-      Vehicles.drive(car, 1, steer, dt, false);
-      car.speed = Math.min(car.speed, Vehicles.topSpeed(car) * rv.skill);
-      if (Util.dist(car.x, car.y, cp[0], cp[1]) < 110) {
-        rv.cp++;
-        if (rv.cp >= r.def.checkpoints.length) {
-          rv.finished = true; rv.finishTime = r.time;
-          HUD.radioLine('RACE CONTROL: ' + rv.name + ' finished!');
+    if (payout > 0) {
+      ctx.game.cash += payout;
+      ctx.economy.addRespect(ctx, position === 1 ? 12 : 5);
+    }
+    ctx.showNotice(position === 1 ? `YOU WON — $${payout}` : `P${position} — $${payout}`);
+    cleanupRace(ctx);
+    ctx.saveGame?.(ctx);
+  }
+
+  function cleanupRace(ctx) {
+    if (!race) return;
+    for (const r of race.rivals) {
+      const i = ctx.traffic.cars.indexOf(r.car);
+      if (i >= 0) ctx.traffic.cars.splice(i, 1);
+      r.car.dispose();
+    }
+    if (marker) marker.visible = false;
+    race = null;
+  }
+
+  function driveRival(r, dt, ctx) {
+    const car = r.car;
+    if (car.wrecked) return;
+    const cps = race.def.checkpoints;
+    if (r.cp >= cps.length) { car.drive(dt, { throttle: 0, steer: 0 }, ctx.world); return; }
+    const [tx, tz] = cps[r.cp];
+    const d = dist2D(car.x, car.z, tx, tz);
+    if (d < 10) { r.cp++; return; }
+    const wantHeading = Math.atan2(tx - car.x, tz - car.z);
+    let dh = wantHeading - car.heading;
+    while (dh > Math.PI) dh -= Math.PI * 2;
+    while (dh < -Math.PI) dh += Math.PI * 2;
+    const steer = clamp(dh * 2.2, -1, 1);
+    // Rivals cruise a touch under top speed so a good driver can win.
+    const target = car.topSpeed * r.skill;
+    const throttle = car.speed < target ? 1 : 0;
+    car.setSteerVisual(steer);
+    car.drive(dt, { throttle, steer, handbrake: false }, ctx.world);
+    car.update(dt, ctx.world);
+    if (Math.abs(car.speed) < 0.5 && throttle > 0) {
+      r.stuckT += dt;
+      if (r.stuckT > 3) {
+        // Stuck on a wall: drop back to the last checkpoint.
+        const [lx, lz] = cps[Math.max(0, r.cp - 1)];
+        car.mesh.position.set(lx, 0, lz);
+        car.speed = 0;
+        r.stuckT = 0;
+      }
+    } else r.stuckT = 0;
+  }
+
+  function standings(ctx) {
+    const cps = race.def.checkpoints;
+    const entries = [{ name: 'YOU', cp: race.cp, dist: race.cp < cps.length ? dist2D(ctx.player.x, ctx.player.z, cps[race.cp][0], cps[race.cp][1]) : 0, finished: race.cp >= cps.length }];
+    for (const r of race.rivals) {
+      entries.push({
+        name: r.name, cp: r.cp,
+        dist: r.cp < cps.length ? dist2D(r.car.x, r.car.z, cps[r.cp][0], cps[r.cp][1]) : 0,
+        finished: r.cp >= cps.length,
+      });
+    }
+    entries.sort((a, b) => (b.cp - a.cp) || (a.dist - b.dist));
+    return entries;
+  }
+
+  function update(dt, ctx) {
+    nearHub = dist2D(ctx.player.x, ctx.player.z, HUB.x, HUB.z) < 12;
+    if (ctx.input.wasPressed('KeyF') && nearHub && !race && !ctx.economy?.panelOpen) {
+      if (panel) closePanel();
+      else openPanel(ctx);
+    }
+    if (!race) return;
+    race.time += dt;
+    // Player checkpoint.
+    const cps = race.def.checkpoints;
+    if (race.cp < cps.length) {
+      const [cx, cz] = cps[race.cp];
+      if (dist2D(ctx.player.x, ctx.player.z, cx, cz) < 10) {
+        race.cp++;
+        if (race.cp < cps.length) {
+          const [nx, nz] = cps[race.cp];
+          marker.position.set(nx, 0, nz);
+          ctx.showNotice(`CHECKPOINT ${race.cp}/${cps.length}`);
         }
       }
     }
-    // Timeout: 6 minutes.
-    if (r.time > 360 && !r.finished) {
-      HUD.toast('Race timed out.', '#ff5a3c');
-      cancelRace();
+    for (const r of race.rivals) driveRival(r, dt, ctx);
+    const order = standings(ctx);
+    race.standings = order;
+    const myPos = order.findIndex((e) => e.name === 'YOU') + 1;
+    race.position = myPos;
+    // Finish: player crosses the last checkpoint, or all rivals finish first.
+    if (race.cp >= cps.length) {
+      finishRace(ctx, myPos);
+      return;
+    }
+    if (race.rivals.every((r) => r.cp >= cps.length)) {
+      finishRace(ctx, 4);
     }
   }
 
-  function finishPlayer() {
-    const r = active;
-    r.finished = true;
-    const finishedBefore = r.rivals.filter(rv => rv.finished).length;
-    r.place = finishedBefore + 1;
-    const prize = r.def.prize[r.place - 1] || 0;
-    const best = G.racesBest[r.def.id];
-    const isRecord = !best || r.time < best;
-    if (isRecord) G.racesBest[r.def.id] = r.time;
-    if (prize > 0) {
-      Economy.addCash(prize);
-      Economy.addRespect(r.place === 1 ? 80 : r.place === 2 ? 40 : 20);
-      HUD.showResult('RACE COMPLETE', r.def.name + '\nPlace: ' + r.place + ' of 4 · Time ' + Util.formatTime(r.time) +
-        (isRecord ? '\nNEW RECORD!' : '') + '\nPrize: ' + Util.formatMoney(prize), '#7ec850');
-      AudioSys.missionDone();
-    } else {
-      HUD.showResult('RACE OVER', r.def.name + '\nPlace: ' + r.place + ' of 4 · Time ' + Util.formatTime(r.time) +
-        '\nNo prize this time — the podium pays.', '#ff5a3c');
-      AudioSys.missionFail();
-    }
-    Save.saveGame();
-    cleanupRivals();
-    active = null;
-  }
-
-  function cancelRace() {
-    cleanupRivals();
-    active = null;
-  }
-
-  function cleanupRivals() {
-    if (!active) return;
-    for (const rv of active.rivals) {
-      const idx = G.cars.indexOf(rv.car);
-      if (idx >= 0) G.cars.splice(idx, 1);
-    }
-  }
-
-  function draw(g) {
-    if (!active) return;
-    const r = active;
-    // Checkpoint markers: next one big and gold, later ones small.
-    for (let i = r.cp; i < r.def.checkpoints.length; i++) {
-      const [cx, cy] = r.def.checkpoints[i];
-      const next = i === r.cp;
-      g.save();
-      g.translate(cx, cy);
-      g.fillStyle = next ? 'rgba(255,210,63,0.35)' : 'rgba(255,255,255,0.12)';
-      g.beginPath(); g.arc(0, 0, next ? 90 : 60, 0, Util.TAU); g.fill();
-      g.strokeStyle = next ? '#ffd23f' : 'rgba(255,255,255,0.5)';
-      g.lineWidth = 3;
-      g.setLineDash([10, 8]);
-      g.beginPath(); g.arc(0, 0, next ? 90 : 60, 0, Util.TAU); g.stroke();
-      g.setLineDash([]);
-      g.fillStyle = '#fff';
-      g.font = 'bold 16px Arial'; g.textAlign = 'center';
-      g.fillText(next ? 'NEXT' : '' + (i + 1), 0, 6);
-      g.restore();
-    }
-    // Guide line from player to next checkpoint.
-    if (r.cp < r.def.checkpoints.length) {
-      const [cx, cy] = r.def.checkpoints[r.cp];
-      g.strokeStyle = 'rgba(255,210,63,0.5)';
-      g.lineWidth = 4;
-      g.setLineDash([18, 14]);
-      g.beginPath(); g.moveTo(G.player.x, G.player.y); g.lineTo(cx, cy); g.stroke();
-      g.setLineDash([]);
-    }
-  }
-
-  function drawRaceHud(g, vw) {
-    if (!active) return;
-    const r = active;
-    g.save();
-    g.textAlign = 'center';
-    if (r.countdown > 0) {
-      g.font = 'bold 90px Arial';
-      g.fillStyle = '#ffd23f';
-      g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 8;
-      const n = Math.ceil(r.countdown);
-      g.strokeText(n, vw / 2, 240);
-      g.fillText(n, vw / 2, 240);
-    }
-    g.font = 'bold 18px Arial';
-    g.fillStyle = '#fff';
-    g.fillText(r.def.name.toUpperCase() + '  ·  CP ' + Math.min(r.cp, r.def.checkpoints.length) + '/' + r.def.checkpoints.length + '  ·  ' + Util.formatTime(r.time), vw / 2, 34);
-    // Live standings.
-    const rows = [{ name: 'YOU', cp: r.cp, finished: r.finished, t: r.time }].concat(r.rivals.map(rv => ({ name: rv.name, cp: rv.cp, finished: rv.finished, t: rv.finishTime })));
-    rows.sort((a, b) => (b.finished - a.finished) || (b.cp - a.cp) || (a.t - b.t));
-    g.font = '13px Arial';
-    g.textAlign = 'left';
-    rows.forEach((row, i) => {
-      g.fillStyle = row.name === 'YOU' ? '#ffd23f' : '#fff';
-      g.fillText((i + 1) + '. ' + row.name + (row.finished ? ' — DONE' : ' — CP ' + row.cp), 16, 120 + i * 20);
-    });
-    g.restore();
-  }
-
-  return { RACES, RIVALS, getActive, byId, startRace, update, cancelRace, draw, drawRaceHud };
-})();
+  return {
+    HUB, RACES,
+    get active() { return race; },
+    get nearHub() { return nearHub; },
+    get panelOpen() { return !!panel; },
+    bestTimes,
+    fmtTime,
+    startRace, update, closePanel,
+    checkpointPos() {
+      if (!race || race.cp >= race.def.checkpoints.length) return null;
+      const [x, z] = race.def.checkpoints[race.cp];
+      return { x, z };
+    },
+    bestTimesState() { return { ...bestTimes }; },
+    applyBestTimesState(s) { Object.assign(bestTimes, s); },
+  };
+}

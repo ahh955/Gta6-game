@@ -1,149 +1,262 @@
-// Solmar City — economy: cash, respect ranks, district standing, the garage
-// upgrade shop, weapon and food shops, and the safehouse.
+// Solmar City — economy: respect ranks, 6-district standing, garage
+// upgrades, shops (weapons / ammo / armour / diner) and the safehouse.
+// Owns game.cash / game.respect / game.rank alongside missions.js.
+// Shops open with F near a marked location; a small DOM panel lists items.
+import * as THREE from '../vendor/three.module.min.js';
+import { districtAt } from './config.js';
+import { clamp, dist2D } from './util.js';
 
-const Economy = (() => {
-  const RANKS = [
-    { name: 'Street Rat', at: 0 },
-    { name: 'Hustler', at: 200 },
-    { name: 'Enforcer', at: 500 },
-    { name: 'Boss', at: 900 },
-    { name: 'Kingpin of Solmar', at: 1500 },
-  ];
+export const RANKS = [
+  { name: 'NOBODY', min: 0 },
+  { name: 'HUSTLER', min: 25 },
+  { name: 'WHEELMAN', min: 60 },
+  { name: 'DEALER', min: 110 },
+  { name: 'ENFORCER', min: 180 },
+  { name: 'SHOT-CALLER', min: 280 },
+  { name: 'KINGPIN', min: 420 },
+];
 
-  const UPGRADES = {
-    engine: { name: 'Engine Tuning', levels: [500, 1200, 2500], desc: '+55 top speed, +18% acceleration per level' },
-    armor: { name: 'Plated Armor', levels: [600, 1300, 2600], desc: '+15% damage resistance per level' },
-    tires: { name: 'Sport Tires', levels: [400, 900], desc: '+handling and grip per level' },
-  };
-  const PAINTS = [
-    { name: 'Sunset Red', color: '#e83a2f', price: 200 },
-    { name: 'Ocean Blue', color: '#2f6fe8', price: 200 },
-    { name: 'Palm Gold', color: '#ffd23f', price: 300 },
-    { name: 'Midnight', color: '#222222', price: 300 },
-    { name: 'Coral Pink', color: '#d94f9e', price: 250 },
-  ];
+export function rankFor(respect) {
+  let rank = RANKS[0].name;
+  for (const r of RANKS) if (respect >= r.min) rank = r.name;
+  return rank;
+}
 
-  const FOOD = [
-    { name: 'Sunset Taco', price: 25, heal: 30 },
-    { name: 'Harbor Fish Plate', price: 60, heal: 70 },
-    { name: 'Kingpin Feast', price: 120, heal: 100 },
-  ];
+// Six districts: the four config districts plus the harbour strip (east)
+// and the hill quarter (far north-west), which the standing system tracks.
+export const DISTRICT6 = [
+  'Downtown Solmar', 'Marina Bay', 'Coral Beach', 'Old Town',
+  'Harbour Point', 'Palm Heights',
+];
 
-  function rank() {
-    let r = RANKS[0];
-    for (const rank of RANKS) if (G.respect >= rank.at) r = rank;
-    return r;
+export function district6At(x, z) {
+  if (x >= 200) return 'Harbour Point';
+  if (x < -120 && z < -120) return 'Palm Heights';
+  return districtAt(x, z);
+}
+
+const GARAGE_ITEMS = [
+  { id: 'engine', name: 'Engine tune', desc: '+4 top speed / level', max: 3, cost: [600, 1200, 1800] },
+  { id: 'armor', name: 'Armour plating', desc: '-20% damage taken / level', max: 3, cost: [500, 1000, 1500] },
+  { id: 'tires', name: 'Grip tyres', desc: '+acceleration / level', max: 2, cost: [400, 800] },
+  { id: 'repaint', name: 'Fresh repaint', desc: 'Sunset-gold respray', max: 1, cost: [250] },
+  { id: 'repair', name: 'Full repair', desc: 'Restore car to 100%', max: 99, cost: [150] },
+];
+
+const GUN_ITEMS = [
+  { id: 'smg', name: 'SMG', desc: 'Fast full-auto, 30-round mag', cost: 800, weapon: 2 },
+  { id: 'shotgun', name: 'Shotgun', desc: 'Huge close-range damage', cost: 1200, weapon: 3 },
+  { id: 'rifle', name: 'Rifle', desc: 'Long range, heavy rounds', cost: 2000, weapon: 4 },
+  { id: 'ammo', name: 'Ammo box', desc: '+60 rounds, current weapon', cost: 120, ammo: true },
+  { id: 'vest', name: 'Kevlar vest', desc: '+50 armour (absorbs bullets)', cost: 350, vest: true },
+];
+
+// Shop / garage / safehouse spots: all on roads so nothing sits in a wall.
+const LOCATIONS = [
+  { kind: 'garage', name: "Rico's Garage", x: -80, z: 24, color: 0xffb347 },
+  { kind: 'guns', name: 'Solmar Arms', x: 80, z: -24, color: 0xff4d4d },
+  { kind: 'diner', name: 'Sunset Diner', x: 0, z: 168, color: 0x7ee787 },
+  { kind: 'safehouse', name: 'Safehouse', x: -160, z: 160, color: 0x4da6ff },
+];
+
+export function createEconomy(scene) {
+  const standing = {};
+  for (const d of DISTRICT6) standing[d] = 10;
+  const garage = { engine: 0, armor: 0, tires: 0, repaint: 0 };
+  let panel = null; // open shop panel element
+  let panelKind = null;
+  let nearLoc = null;
+
+  // 3D markers: a coloured beacon ring + pole at each location.
+  for (const loc of LOCATIONS) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(2.2, 3, 24),
+      new THREE.MeshBasicMaterial({ color: loc.color, transparent: true, opacity: 0.85, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(loc.x, 0.08, loc.z);
+    scene.add(ring);
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5, 0.5, 26, 8, 1, true),
+      new THREE.MeshBasicMaterial({ color: loc.color, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    beam.position.set(loc.x, 13, loc.z);
+    scene.add(beam);
   }
-  function nextRank() {
-    for (const r of RANKS) if (G.respect < r.at) return r;
-    return null;
+
+  function addRespect(ctx, n) {
+    const before = ctx.game.rank;
+    ctx.game.respect = Math.max(0, ctx.game.respect + n);
+    ctx.game.rank = rankFor(ctx.game.respect);
+    if (ctx.game.rank !== before) {
+      ctx.showNotice(`RANK UP — ${ctx.game.rank}`);
+    }
   }
 
-  function addCash(n) { G.cash += n; }
-  function spendCash(n) {
-    if (G.cash < n) return false;
-    G.cash -= n;
+  function addStanding(district, n) {
+    if (district in standing) standing[district] = clamp(standing[district] + n, 0, 100);
+  }
+
+  function spend(ctx, amount) {
+    if (ctx.game.cash < amount) { ctx.showNotice('NOT ENOUGH CASH'); return false; }
+    ctx.game.cash -= amount;
     return true;
   }
-  function addRespect(n) {
-    const before = rank().name;
-    G.respect += n;
-    const d = City.districtAt(G.player.x, G.player.y);
-    if (d) G.standing[d.id] = Math.min(100, (G.standing[d.id] || 0) + Math.ceil(n / 10));
-    if (rank().name !== before) {
-      HUD.toast('RESPECT RANK UP: ' + rank().name, '#ffd23f');
-      AudioSys.missionDone();
+
+  // Apply owned garage levels to a car the player just entered.
+  function applyToVehicle(v) {
+    if (!v || v._garageApplied) return;
+    v._garageApplied = true;
+    v._baseTopSpeed = v.topSpeed;
+    v._baseAccel = v.accel;
+    v._origColor = v.mesh.userData.bodyMat.color.getHex();
+    v.topSpeed = v._baseTopSpeed + garage.engine * 4;
+    v.accel = v._baseAccel + garage.tires * 1.6;
+    if (garage.repaint) v.mesh.userData.bodyMat.color.setHex(0xe8a33b);
+    if (garage.armor > 0) {
+      const origDamage = v.damage.bind(v);
+      v.damage = (n) => origDamage(n * (1 - 0.2 * garage.armor));
     }
   }
 
-  // --- Garage ---
-  function garageMenu() {
-    const car = G.player.car;
-    if (!car) return null;
-    const items = [];
-    for (const key of ['engine', 'armor', 'tires']) {
-      const u = UPGRADES[key];
-      const lvl = car.upgrade[key] || 0;
-      const maxed = lvl >= u.levels.length;
-      items.push({
-        id: 'up_' + key, label: u.name + ' — Lv ' + lvl + '/' + u.levels.length + (maxed ? ' (MAX)' : ' — ' + Util.formatMoney(u.levels[lvl])),
-        desc: u.desc, price: maxed ? 0 : u.levels[lvl], disabled: maxed,
-        buy: () => { car.upgrade[key] = lvl + 1; car.maxHp = 100 + (car.upgrade.armor || 0) * 40; car.hp = car.maxHp; },
-      });
+  function repairVehicle(ctx) {
+    const v = ctx.player.vehicle;
+    if (!v) { ctx.showNotice('NO CAR HERE'); return; }
+    if (v.wrecked) {
+      v.wrecked = false;
+      v.burning = false;
+      v.speed = 0;
+      if (v._fire) { v.mesh.parent?.remove(v._fire); v._fire = null; }
+      if (v._fireLight) { v.mesh.parent?.remove(v._fireLight); v._fireLight = null; }
+      v.mesh.rotation.set(0, v.heading, 0);
+      v.mesh.userData.bodyMat.color.setHex(v._origColor ?? 0xc23b3b);
     }
-    for (const paint of PAINTS) {
-      items.push({
-        id: 'paint_' + paint.name, label: 'Repaint: ' + paint.name + ' — ' + Util.formatMoney(paint.price),
-        desc: 'Fresh coat at Solmar Customs.', price: paint.price,
-        buy: () => { car.color = paint.color; },
-      });
-    }
-    items.push({
-      id: 'repair', label: 'Full Repair — ' + Util.formatMoney(150), desc: 'Fix every dent and refill the tank.',
-      price: 150, buy: () => { car.hp = car.maxHp; car.burning = false; },
-    });
-    return { title: 'SOLMAR CUSTOMS GARAGE — ' + car.name, items };
+    v.health = 100;
+    ctx.showNotice('CAR REPAIRED');
   }
 
-  // --- Weapon shop ---
-  function gunshopMenu() {
-    const items = [];
-    for (const key of Combat.ORDER) {
-      if (key === 'fists') continue;
-      const w = Combat.WEAPONS[key];
-      const owned = G.player.owned.includes(key);
-      if (!owned) {
-        items.push({
-          id: 'buy_' + key, label: w.name + ' — ' + Util.formatMoney(w.price),
-          desc: 'Damage ' + w.damage + ' · Range ' + w.range + (w.auto ? ' · automatic' : '') + (w.pellets ? ' · ' + w.pellets + ' pellets' : ''),
-          price: w.price,
-          buy: () => { G.player.owned.push(key); G.player.ammo[key] = w.ammo; },
-        });
-      } else {
-        items.push({
-          id: 'ammo_' + key, label: w.name + ' ammo (+' + w.ammo + ') — ' + Util.formatMoney(Math.floor(w.price / 4)),
-          desc: 'Top up your ' + w.name + '.', price: Math.floor(w.price / 4),
-          buy: () => { G.player.ammo[key] = (G.player.ammo[key] || 0) + w.ammo; },
-        });
+  // ---- shop panel (DOM) ----
+  function closePanel() {
+    if (panel) { panel.remove(); panel = null; panelKind = null; }
+  }
+
+  function openPanel(ctx, loc) {
+    closePanel();
+    panelKind = loc.kind;
+    panel = document.createElement('div');
+    panel.id = 'shop-panel';
+    const items = loc.kind === 'garage' ? GARAGE_ITEMS : loc.kind === 'guns' ? GUN_ITEMS : null;
+    let html = `<div class="shop-title">${loc.name.toUpperCase()}</div>`;
+    html += `<div class="shop-cash">Cash $${ctx.game.cash.toLocaleString('en-US')}</div>`;
+    if (loc.kind === 'diner') {
+      html += `<div class="shop-desc">Hot food, cold drinks, zero questions. A full meal restores your health.</div>`;
+      html += `<button class="shop-btn" data-buy="meal">Full meal — $25 (heal to 100)</button>`;
+    } else if (loc.kind === 'safehouse') {
+      html += `<div class="shop-desc">Your place. Sleep to save the game, heal up and let the heat die down.</div>`;
+      html += `<button class="shop-btn" data-buy="sleep">Sleep — save + heal + clear wanted</button>`;
+    } else {
+      for (const it of items) {
+        const lvl = it.id in garage ? garage[it.id] : 0;
+        const maxed = it.max && lvl >= it.max && it.id !== 'repair';
+        const cost = Array.isArray(it.cost) ? (it.id === 'repair' ? it.cost[0] : it.cost[lvl] ?? it.cost[it.cost.length - 1]) : it.cost;
+        const owned = it.weapon !== undefined && ctx.combat?.owns(it.weapon);
+        const label = maxed ? 'MAXED' : owned ? 'OWNED' : `$${cost.toLocaleString('en-US')}`;
+        html += `<button class="shop-btn" data-buy="${it.id}" ${maxed || owned ? 'disabled' : ''}>${it.name} — ${it.desc} <b>${label}</b></button>`;
       }
     }
-    items.push({
-      id: 'armor', label: 'Body Armor (+50) — ' + Util.formatMoney(300),
-      desc: 'Absorbs 60% of incoming damage until depleted.', price: 300,
-      buy: () => { G.player.armor = Math.min(100, G.player.armor + 50); },
+    html += `<button class="shop-btn shop-close" data-buy="close">Close (F)</button>`;
+    panel.innerHTML = html;
+    panel.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-buy]');
+      if (!btn) return;
+      buy(ctx, loc, btn.dataset.buy);
     });
-    return { title: 'SOLMAR ARMS — licensed dealer', items };
+    document.body.appendChild(panel);
   }
 
-  // --- Diner ---
-  function dinerMenu() {
-    return {
-      title: 'SUNSET DINER — eat up, boss',
-      items: FOOD.map(f => ({
-        id: 'food_' + f.name, label: f.name + ' — ' + Util.formatMoney(f.price) + ' (+' + f.heal + ' HP)',
-        desc: 'Fresh off the grill.', price: f.price,
-        buy: () => { G.player.hp = Math.min(100, G.player.hp + f.heal); },
-      })),
-    };
+  function buy(ctx, loc, id) {
+    if (id === 'close') { closePanel(); return; }
+    if (id === 'meal') {
+      if (!spend(ctx, 25)) return;
+      ctx.player.setHealth(100);
+      ctx.showNotice('FED AND RESTED — HEALTH 100');
+      closePanel();
+      return;
+    }
+    if (id === 'sleep') {
+      ctx.player.setHealth(100);
+      ctx.police.clearWanted();
+      ctx.render.setTimeOfDay(18.4);
+      ctx.saveGame?.(ctx);
+      ctx.showNotice('GAME SAVED');
+      closePanel();
+      return;
+    }
+    if (loc.kind === 'garage') {
+      const it = GARAGE_ITEMS.find((g) => g.id === id);
+      if (!it) return;
+      if (id === 'repair') {
+        if (!ctx.player.vehicle) { ctx.showNotice('BRING A CAR TO THE GARAGE'); return; }
+        if (!spend(ctx, it.cost[0])) return;
+        repairVehicle(ctx);
+        return;
+      }
+      if (garage[id] >= it.max) return;
+      if (!spend(ctx, it.cost[garage[id]])) return;
+      garage[id]++;
+      if (ctx.player.vehicle) {
+        // Re-apply on the current car: reset flags so levels take effect.
+        ctx.player.vehicle._garageApplied = false;
+        applyToVehicle(ctx.player.vehicle);
+      }
+      ctx.showNotice(`${it.name.toUpperCase()} INSTALLED`);
+      openPanel(ctx, loc); // refresh prices
+      return;
+    }
+    if (loc.kind === 'guns') {
+      const it = GUN_ITEMS.find((g) => g.id === id);
+      if (!it) return;
+      if (it.weapon !== undefined && ctx.combat?.owns(it.weapon)) return;
+      if (!spend(ctx, it.cost)) return;
+      if (it.weapon !== undefined) ctx.combat.giveWeapon(it.weapon);
+      else if (it.ammo) ctx.combat.addAmmo(60);
+      else if (it.vest) ctx.game.armor = clamp((ctx.game.armor || 0) + 50, 0, 100);
+      ctx.showNotice(`${it.name.toUpperCase()} BOUGHT`);
+      openPanel(ctx, loc);
+    }
   }
 
-  function buyItem(menu, item) {
-    if (item.disabled) return;
-    if (!spendCash(item.price)) { HUD.toast('Not enough cash — ' + Util.formatMoney(item.price) + ' needed', '#ff5a3c'); return; }
-    item.buy();
-    AudioSys.pickup();
-    HUD.toast('Purchased: ' + item.label.split(' — ')[0], '#7ec850');
+  function update(dt, ctx) {
+    // Proximity: nearest location within 12m.
+    nearLoc = null;
+    let best = 12;
+    for (const loc of LOCATIONS) {
+      const d = dist2D(ctx.player.x, ctx.player.z, loc.x, loc.z);
+      if (d < best) { best = d; nearLoc = loc; }
+    }
+    if (ctx.input.wasPressed('KeyF')) {
+      if (panel) closePanel();
+      else if (nearLoc && !ctx.races?.hubOpen) openPanel(ctx, nearLoc);
+    }
+    // Garage levels follow the car the player is driving.
+    if (ctx.player.vehicle) applyToVehicle(ctx.player.vehicle);
   }
 
-  // --- Safehouse ---
-  function sleepAtSafehouse() {
-    G.player.hp = 100;
-    G.player.armor = Math.max(G.player.armor, 25);
-    Police.clearWanted();
-    Save.saveGame();
-    HUD.toast('Rested at the safehouse. Health restored, wanted cleared, game saved.', '#7ec850');
-    AudioSys.missionDone();
-  }
-
-  return { RANKS, UPGRADES, PAINTS, FOOD, rank, nextRank, addCash, spendCash, addRespect, garageMenu, gunshopMenu, dinerMenu, buyItem, sleepAtSafehouse };
-})();
+  return {
+    standing,
+    garage,
+    locations: LOCATIONS,
+    get nearLoc() { return nearLoc; },
+    get panelOpen() { return !!panel; },
+    addRespect, addStanding, spend, applyToVehicle, repairVehicle,
+    openPanel, closePanel, update,
+    districtStandingAt(x, z) {
+      const d = district6At(x, z);
+      return { district: d, value: standing[d] ?? 10 };
+    },
+    garageState() { return { ...garage }; },
+    applyGarageState(s) { Object.assign(garage, s); },
+    standingState() { return { ...standing }; },
+    applyStandingState(s) { Object.assign(standing, s); },
+  };
+}
