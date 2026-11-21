@@ -1,8 +1,8 @@
 # Solmar City 3D — Make GTA 6 (gta6-01, round 8)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Play on make.fun](https://img.shields.io/badge/Play-Solmar_City_3D-ff7a1a)](https://make.fun/c/gta6-01)
-[![Built with Three.js](https://img.shields.io/badge/Built_with-Three.js-000000)](https://threejs.org/)
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/ahh955/Gta6-game/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
 An open-world 3D driving game in the browser: a sun-soaked beach boulevard,
 ten story missions, a crew to build, and Solmar PD closing in from every
