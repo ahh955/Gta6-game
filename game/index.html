@@ -4,153 +4,109 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Solmar City 3D — an open-world crime game</title>
-<link rel="stylesheet" href="./src/style.css">
+<link rel="stylesheet" href="style.css">
 <script type="importmap">
-{
-  "imports": {
-    "three": "./vendor/three.module.min.js"
-  }
-}
+{ "imports": { "three": "./vendor/three.module.min.js" } }
 </script>
 </head>
 <body>
-<div id="game-canvas"></div>
+<canvas id="scene"></canvas>
 
-<!-- ===================== HUD ===================== -->
-<div id="hud" class="hidden">
-  <div id="hud-top-left" class="panel">
-    <div id="hud-stars" class="stars">☆☆☆☆☆</div>
-    <div id="hud-cash">$18,450</div>
-    <div id="hud-rank-row"><span id="hud-rank">FIXER</span><span id="hud-rp">6,200 / 9,000 RP</span></div>
-    <div class="bar"><div id="hud-rp-bar" style="width:21%"></div></div>
-    <div class="bar"><div id="hud-hp-bar" style="width:100%"></div></div>
-    <div class="bar"><div id="hud-armor-bar" style="width:50%"></div></div>
-    <div id="hud-hp-text">100 HP · 50 ARMOR</div>
-  </div>
+<!-- ============ HUD ============ -->
+<div id="hud">
+  <!-- top-left: mission tracker -->
+  <section id="mission" class="panel">
+    <div class="mission-head"><span id="mission-num">MISSION 6</span><span id="mission-timer">2:27</span></div>
+    <h1 id="mission-name">WRECK THE REGENT</h1>
+    <div class="stage-row"><span id="mission-stage">STAGE 3/4</span><div class="stage-bar"><i id="mission-stage-fill"></i></div></div>
+    <p id="mission-objective">Wreck Oru's Regent before it reaches the pier</p>
+    <p class="next-line">NEXT <b id="mission-next">Vanish</b></p>
+  </section>
 
-  <div id="hud-top-right">
+  <!-- left: police dispatch -->
+  <section id="dispatch" class="panel">
+    <div class="dispatch-head"><span>SOLMAR PD RESPONSE</span><b id="dispatch-count">6 UNITS</b></div>
+    <ul id="dispatch-list"></ul>
+    <p class="dispatch-foot" id="dispatch-foot">+2 more units — roadblock ahead</p>
+  </section>
+
+  <!-- top-right: money, wanted, rank -->
+  <section id="status" class="panel">
+    <div class="cash-row"><span id="clock">16:00</span><b id="cash">$18,450</b></div>
+    <div class="stars" id="stars">★★★★<i>☆</i></div>
+    <div class="air-unit" id="air-unit">AIR UNIT DEPLOYED</div>
+    <div class="rank-row"><span id="rank-badge">RANK 6</span><b id="rank-name">FIXER</b></div>
+    <div class="rp-bar"><i id="rp-fill"></i></div>
+    <div class="rp-text"><span id="rp-text">6,200 / 9,000 RP</span></div>
+  </section>
+
+  <!-- right: weapons -->
+  <section id="weapons" class="panel">
+    <div class="weapon"><span class="w-key">1</span><span class="w-name">FISTS</span><span class="w-ammo">∞</span></div>
+    <div class="weapon"><span class="w-key">2</span><span class="w-name">.38</span><span class="w-ammo">60</span></div>
+    <div class="weapon active"><span class="w-key">3</span><span class="w-name">SMG</span><span class="w-ammo">30/60</span></div>
+    <div class="weapon"><span class="w-key">4</span><span class="w-name">12G</span><span class="w-ammo">18</span></div>
+    <div class="weapon"><span class="w-key">5</span><span class="w-name">AR-9</span><span class="w-ammo">120</span></div>
+  </section>
+
+  <!-- right: crew -->
+  <section id="crew" class="panel">
+    <div class="crew-member"><span class="crew-avatar" style="--av:#2dd4bf">M</span><div><b>SWAP PLATES</b><span>Mira · Driver</span></div><em class="ready">READY</em></div>
+    <div class="crew-member"><span class="crew-avatar" style="--av:#f59e0b">L</span><div><b>QUICK FIX</b><span>Lio · Mechanic</span></div><em class="ready">READY</em></div>
+    <div class="crew-member"><span class="crew-avatar" style="--av:#a78bfa">K</span><div><b>EYES OUT</b><span>Kiki · Lookout</span></div><em class="ready">READY</em></div>
+  </section>
+
+  <!-- bottom-left: location + minimap + vitals -->
+  <section id="map-block">
+    <div id="location" class="panel"><b>SOLMAR STRAND</b><span>Strand Boulevard</span><div class="standing"><i style="width:58%"></i></div><span class="standing-text">NEUTRAL · 58</span></div>
     <canvas id="minimap" width="220" height="220"></canvas>
-    <div id="hud-location">Solmar Blvd — Marina District</div>
-    <div id="hud-standing">Marina District standing: 62%</div>
-    <div class="bar"><div id="hud-standing-bar" style="width:62%"></div></div>
-  </div>
-
-  <div id="hud-mission" class="panel">
-    <div id="hud-mission-title">MISSION 6 — VAULT RUN</div>
-    <div id="hud-mission-stage">STAGE 3/4</div>
-    <div id="hud-mission-objective">Grab the cash — escape the vault</div>
-    <div id="hud-mission-next">NEXT: Outrun the Solmar PD dragnet</div>
-    <div id="hud-mission-meta">
-      <span id="hud-mission-giver">From Dara Marlowe · $4,200 payout</span>
-      <span id="hud-mission-timer">2:27</span>
+    <div id="vitals" class="panel">
+      <div class="vital"><span>HEALTH</span><div class="vital-bar"><i class="health" id="health-fill"></i></div><b id="health-num">72</b></div>
+      <div class="vital"><span>ARMOUR</span><div class="vital-bar"><i class="armour" id="armour-fill"></i></div><b id="armour-num">55</b></div>
     </div>
-  </div>
+  </section>
 
-  <div id="hud-dispatch" class="panel">
-    <h3>SOLMAR PD DISPATCH</h3>
-    <div id="hud-dispatch-list"></div>
-  </div>
+  <!-- bottom-center: dialogue -->
+  <section id="dialogue" class="panel">
+    <span class="dialogue-avatar" id="dialogue-avatar">J</span>
+    <div><b id="dialogue-name">JUNO</b><p id="dialogue-text">He's making for Solmar Pier! Ram the Regent before it reaches the water!</p></div>
+  </section>
 
-  <div id="hud-bottom-left">
-    <div id="hud-weapons" class="panel"></div>
-    <div id="hud-crew" class="panel"></div>
-  </div>
+  <!-- bottom-right: speedometer -->
+  <section id="speedo" class="panel">
+    <div class="speed-row"><b id="speed">104</b><span>MPH</span></div>
+    <div id="vehicle-name">VORTEX GT</div>
+    <div class="condition"><span id="condition-text">62% DENTED</span><div class="condition-bar"><i id="condition-fill"></i></div></div>
+    <div id="radio">♪ SOLMAR FM 101.2</div>
+  </section>
 
-  <div id="hud-dialogue" class="panel hidden">
-    <span id="hud-dialogue-face">JR</span>
-    <span>
-      <span id="hud-dialogue-name">Juno Reyes</span><span id="hud-dialogue-role">Driver — Crew</span>
-      <div id="hud-dialogue-line"></div>
-    </span>
-  </div>
-
-  <div id="hud-bottom-right" class="panel">
-    <div id="hud-speed-row"><span id="hud-speed">0</span><span id="hud-speed-unit">MPH</span></div>
-    <div id="hud-car">VORTEX GT</div>
-    <div id="hud-condition">CONDITION 87%</div>
-    <div class="bar"><div id="hud-condition-bar" style="width:87%"></div></div>
-    <div id="hud-radio">SOLMAR FM 101.2 — "Neon Tide" — The Marliners</div>
-  </div>
-
-  <div id="hud-toast" class="hidden"></div>
+  <div id="banner"></div>
+  <div id="hint">WASD drive · SPACE brake · F enter/exit car · 1–5 weapons · M/L/K crew · P pause</div>
 </div>
 
-<!-- ===================== Start screen ===================== -->
-<div id="start-screen">
-  <h1>SOLMAR CITY</h1>
-  <h2>3D · OPEN WORLD · CRIME</h2>
-  <p class="tagline">Six districts. One vault. A crew that never misses.
-    Drive the boulevard, outrun the Solmar PD, and take the Coral Crown.</p>
-  <div class="press">PRESS ENTER OR CLICK TO PLAY</div>
-  <div class="controls">
-    <b>WASD</b> drive / walk &nbsp;·&nbsp; <b>Space</b> handbrake &nbsp;·&nbsp; <b>E</b> enter / exit car
-    &nbsp;·&nbsp; <b>F</b> steal car<br>
-    <b>Click</b> shoot &nbsp;·&nbsp; <b>Q</b> weapon wheel &nbsp;·&nbsp; <b>C</b> cover &nbsp;·&nbsp; <b>R</b> radio
-    &nbsp;·&nbsp; <b>1–5</b> weapons &nbsp;·&nbsp; <b>6–8</b> crew abilities<br>
-    <b>M</b> map &nbsp;·&nbsp; <b>Tab</b> missions &nbsp;·&nbsp; <b>G</b> save &nbsp;·&nbsp; <b>P</b> pause
-    &nbsp;·&nbsp; <b>Drag mouse</b> camera
+<!-- start screen -->
+<div id="title-screen">
+  <div class="title-card">
+    <h1>SOLMAR CITY <span>3D</span></h1>
+    <p class="tagline">An open-world crime game — ten jobs, one city, no way out but through.</p>
+    <p class="title-state">Continue — Mission 6 · $18,450 · FIXER · 62% through the story</p>
+    <button id="play-btn">▶ &nbsp;CONTINUE</button>
+    <p class="title-foot">WASD drive &amp; walk · Mouse aim · F steal a car · Wanted stars bring the heat</p>
   </div>
 </div>
 
-<!-- ===================== Menus ===================== -->
-<div id="pause-menu" class="menu hidden">
-  <div class="menu-box">
-    <h2>PAUSED — SOLMAR CITY</h2>
-    <p>Take a breath, Vex. The city waits.</p>
-    <h3>Progress</h3>
-    <p>Press <b>G</b> any time to save. Your cash, rank, missions and garage
-      are stored in this browser.</p>
-    <h3>Controls</h3>
-    <p>WASD drive / walk · Space handbrake · E enter / exit · F steal ·
-      Click shoot · Q weapon wheel · C cover · R radio · 1–5 weapons ·
-      6–8 crew abilities · M map · Tab missions · G save · P pause.</p>
-    <p class="close-hint">Press P to resume.</p>
-  </div>
-</div>
-
-<div id="missions-menu" class="menu hidden">
-  <div class="menu-box">
-    <h2>STORY MISSIONS</h2>
-    <div class="mission-row done"><span>1 · FIRST GEAR</span><span>DONE · $800</span></div>
-    <div class="mission-row done"><span>2 · SALT &amp; SMOKE</span><span>DONE · $1,200</span></div>
-    <div class="mission-row done"><span>3 · NEON RUN</span><span>DONE · $1,500</span></div>
-    <div class="mission-row done"><span>4 · HIGH TIDE</span><span>DONE · $2,200</span></div>
-    <div class="mission-row done"><span>5 · GHOST ROUTE</span><span>DONE · $2,600</span></div>
-    <div class="mission-row current"><span>6 · VAULT RUN</span><span>STAGE 3/4 · $4,200</span></div>
-    <div class="mission-row"><span>7 · KINGFISH</span><span>$3,800</span></div>
-    <div class="mission-row"><span>8 · BURNING TIDE</span><span>$5,100</span></div>
-    <div class="mission-row"><span>9 · THE LONG CON</span><span>$6,800</span></div>
-    <div class="mission-row"><span>10 · SOLMAR HEIST</span><span>$12,000</span></div>
-    <h3>Street races</h3>
-    <p>Boulevard Sprint · Marina Loop · Casino Dash · Port Haul · Hills Climb —
-      win all five for the Sunset Stallion.</p>
-    <p class="close-hint">Press Tab to close.</p>
-  </div>
-</div>
-
-<div id="map-menu" class="menu hidden">
-  <div class="menu-box">
-    <h2>MAP OF SOLMAR CITY</h2>
-    <p>Six districts, each with its own standing. Raise standing by running
-      jobs for the locals — high standing opens cheaper shops and safe routes.</p>
-    <h3>Districts</h3>
+<div id="pause-menu" hidden>
+  <div class="pause-card">
+    <h2>PAUSED</h2>
     <ul>
-      <li><b>Marina District</b> — 62% · docks, yachts, the safehouse</li>
-      <li><b>Solmar Boulevard</b> — 48% · the main drag, palms and beach bars</li>
-      <li><b>Casino Strip</b> — 71% · the Coral Crown and its vault</li>
-      <li><b>Port Solmar</b> — 35% · containers, smugglers, the Kingfish</li>
-      <li><b>Old Town</b> — 54% · narrow streets, the crew's garage</li>
-      <li><b>Coral Hills</b> — 28% · rich houses, tight security</li>
+      <li>Resume — P</li>
+      <li>Save game — progress autosaves at safehouses</li>
+      <li>Restart mission</li>
+      <li>Quit to title</li>
     </ul>
-    <h3>Landmarks</h3>
-    <p>Coral Crown Casino · Solmar Pier Ferris wheel · Marina safehouse ·
-      Old Town garage · Port gates.</p>
-    <p class="close-hint">Press M to close.</p>
   </div>
 </div>
 
-<div id="err" class="hidden"></div>
-
-<script type="module" src="./src/main.js"></script>
+<script type="module" src="src/main.js"></script>
 </body>
 </html>

@@ -1,252 +1,151 @@
-// Solmar City 3D — the HUD: wanted stars, cash, rank, mission tracker,
-// dispatch panel, weapon slots, crew abilities, dialogue, speedometer and
-// the detailed minimap (street grid, coloured dots, search-zone ring).
+// HUD for Solmar City 3D: fills the staged panels in index.html — the
+// mission tracker, the dispatch list with coloured chips, the status panel
+// (cash, stars, rank, RP), vitals, speedometer, dialogue bar and the
+// red-ring minimap drawn on #minimap.
+import { dispatchLines } from './police.js';
+import { rankFor } from './crew.js';
+import { getMission } from './missions.js';
 
-import { RESPECT_RANKS, DISTRICTS } from "./config.js";
+const $ = (id) => document.getElementById(id);
 
-function el(id) {
-  return document.getElementById(id);
+function formatCash(amount) {
+  return '$' + amount.toLocaleString('en-US');
 }
 
-function fmtCash(n) {
-  return "$" + n.toLocaleString("en-US");
-}
+export function createHud(state) {
+  const minimap = $('minimap');
+  const minimapCtx = minimap.getContext('2d');
 
-export function rankForRp(rp) {
-  let rank = RESPECT_RANKS[0];
-  let next = RESPECT_RANKS[1];
-  for (let i = 0; i < RESPECT_RANKS.length; i++) {
-    if (rp >= RESPECT_RANKS[i].rp) {
-      rank = RESPECT_RANKS[i];
-      next = RESPECT_RANKS[i + 1] || null;
+  function updateStars(stars) {
+    const filled = '★'.repeat(stars);
+    const empty = '☆'.repeat(5 - stars);
+    $('stars').innerHTML = empty ? `${filled}<i>${empty}</i>` : filled;
+    $('stars').style.color = stars >= 4 ? '#f87171' : '#facc15';
+    $('air-unit').style.display = stars >= 4 ? 'block' : 'none';
+  }
+
+  function updateMission() {
+    const mission = getMission(state.missionId);
+    $('mission-num').textContent = `MISSION ${mission.id}`;
+    $('mission-name').textContent = mission.name;
+    $('mission-objective').textContent = mission.objective;
+    $('mission-stage').textContent = `STAGE ${state.missionStage}/${mission.stages}`;
+    $('mission-stage-fill').style.width = `${Math.round((state.missionStage / mission.stages) * 100)}%`;
+    $('mission-next').textContent = mission.next || '—';
+    const mins = Math.floor(state.timerSeconds / 60);
+    const secs = Math.floor(state.timerSeconds % 60);
+    $('mission-timer').textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+  }
+
+  function updateDispatch(time) {
+    const rows = dispatchLines(time).map((unit) => `
+      <li><span class="unit-name">${unit.callsign}</span>
+      <span class="unit-dist">${unit.distance}m</span>
+      <span class="chip ${unit.chipClass}">${unit.chip}</span></li>`).join('');
+    $('dispatch-list').innerHTML = rows;
+    $('dispatch-count').textContent = `${dispatchLines(time).length} UNITS`;
+    $('dispatch-foot').textContent = state.roadblock
+      ? '+2 more units — roadblock ahead'
+      : 'Roadblock cleared — units regrouping';
+  }
+
+  function drawMinimap(playerPos, heading, cruisers, roadblock) {
+    const ctx = minimapCtx;
+    const size = minimap.width;
+    const cx = size / 2, cy = size / 2;
+    ctx.clearRect(0, 0, size, size);
+    // Water (right) and land (left), beach strip between.
+    ctx.fillStyle = '#0e7d9c'; ctx.fillRect(size / 2, 0, size / 2, size);
+    ctx.fillStyle = '#3f4a3a'; ctx.fillRect(0, 0, size / 2, size);
+    ctx.fillStyle = '#ead9a8'; ctx.fillRect(size / 2 - 6, 0, 6, size);
+    // Road running top to bottom.
+    ctx.fillStyle = '#33373d';
+    ctx.fillRect(size * 0.28, 0, size * 0.14, size);
+    ctx.strokeStyle = '#eab308'; ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.moveTo(size * 0.35, 0); ctx.lineTo(size * 0.35, size); ctx.stroke();
+    ctx.setLineDash([]);
+    // City blocks.
+    ctx.fillStyle = '#5b6672';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(10, 10 + i * 34, 34, 24);
+      ctx.fillRect(52, 10 + i * 34, 20, 24);
+    }
+    // Mission marker (gold diamond) ahead.
+    ctx.save();
+    ctx.translate(cx - 6, 22);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(-6, -6, 12, 12);
+    ctx.restore();
+    // Roadblock marker (red X) ahead.
+    if (roadblock) {
+      ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(cx - 24, 40); ctx.lineTo(cx - 8, 56);
+      ctx.moveTo(cx - 8, 40); ctx.lineTo(cx - 24, 56);
+      ctx.stroke();
+    }
+    // Cruisers (blue dots) around the player.
+    ctx.fillStyle = '#38bdf8';
+    for (const cruiser of cruisers) {
+      const dx = (cruiser.x - playerPos.x) * 1.1;
+      const dz = (cruiser.z - playerPos.z) * 1.1;
+      ctx.beginPath();
+      ctx.arc(cx + dx, cy + dz, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Player arrow (white triangle, rotated to heading).
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-heading + Math.PI);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(0, -9); ctx.lineTo(6, 7); ctx.lineTo(-6, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // Red ring: the heat is on.
+    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(cx, cy, size / 2 - 4, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  function updateWeapons() {
+    for (const el of document.querySelectorAll('.weapon')) {
+      const name = el.querySelector('.w-name').textContent;
+      el.classList.toggle('active', name === state.weapon);
     }
   }
-  const span = next ? next.rp - rank.rp : 1;
-  const progress = next ? Math.min(1, (rp - rank.rp) / span) : 1;
-  return { rank, next, progress };
-}
 
-export function districtAt(x, z) {
-  if (z > 10) return DISTRICTS[1];
-  if (x > 25 && z > -35) return DISTRICTS[2];
-  if (x < -55) return DISTRICTS[3];
-  if (x > 55) return DISTRICTS[0];
-  if (z < -60) return DISTRICTS[5];
-  if (x < -25 && z < -35) return DISTRICTS[4];
-  return DISTRICTS[1];
-}
-
-export function updateHUD(game) {
-  const { player, police, missions, combat, crew, radio, state } = game;
-
-  // Wanted stars.
-  const stars = el("hud-stars");
-  stars.textContent = "★".repeat(police.stars) + "☆".repeat(5 - police.stars);
-  stars.className = "stars" + (police.stars >= 4 ? " hot" : police.stars >= 2 ? " warm" : "");
-
-  el("hud-cash").textContent = fmtCash(state.cash);
-  const { rank, next, progress } = rankForRp(state.rp);
-  el("hud-rank").textContent = rank.name;
-  el("hud-rp").textContent = next
-    ? `${state.rp.toLocaleString()} / ${next.rp.toLocaleString()} RP`
-    : `${state.rp.toLocaleString()} RP — MAX`;
-  el("hud-rp-bar").style.width = `${Math.round(progress * 100)}%`;
-
-  // Health + armour.
-  el("hud-hp-bar").style.width = `${player.health}%`;
-  el("hud-armor-bar").style.width = `${player.armor}%`;
-  el("hud-hp-text").textContent = `${player.health} HP · ${player.armor} ARMOR`;
-
-  // Mission tracker.
-  const m = missions.current;
-  el("hud-mission-title").textContent = `MISSION ${m.id} — ${m.title}`;
-  el("hud-mission-stage").textContent = missions.stageLabel;
-  el("hud-mission-objective").textContent = missions.stage;
-  el("hud-mission-next").textContent = `NEXT: ${missions.nextStage}`;
-  el("hud-mission-timer").textContent = missions.timerLabel;
-  el("hud-mission-giver").textContent = `From ${m.giver} · $${m.payout.toLocaleString()} payout`;
-
-  // Dispatch panel.
-  const list = el("hud-dispatch-list");
-  list.innerHTML = police.dispatch
-    .map(
-      (u) => `<div class="dispatch-row">
-        <span class="dispatch-call">${u.callsign}</span>
-        <span class="dispatch-kind">${u.kind}</span>
-        <span class="dispatch-chip" style="background:${u.chipColor}">${u.chip}</span>
-        <span class="dispatch-dist">${u.distance.toFixed(1)} mi</span>
-      </div>`,
-    )
-    .join("");
-
-  // Weapon slots.
-  const slots = el("hud-weapons");
-  slots.innerHTML = combat.weapons
-    .map(
-      (w, i) => `<div class="weapon-slot${i === combat.selected ? " active" : ""}">
-        <span class="weapon-key">${w.slot}</span>
-        <span class="weapon-name">${w.name}</span>
-        <span class="weapon-ammo">${w.ammo} / ${w.max}</span>
-      </div>`,
-    )
-    .join("");
-
-  // Crew abilities.
-  const crewEl = el("hud-crew");
-  crewEl.innerHTML = crew.members
-    .map(
-      (c) => `<div class="crew-card">
-        <span class="crew-face" style="background:${c.color}">${c.initials}</span>
-        <span class="crew-info"><b>${c.name}</b><i>${c.role} · ${c.ability}</i>
-        <em>${c.readyIn > 0 ? `Ready in ${Math.ceil(c.readyIn)}s` : "READY — press " + (c.id === "juno" ? "1" : c.id === "marco" ? "2" : "3")}</em></span>
-      </div>`,
-    )
-    .join("");
-
-  // Speedometer + car.
-  el("hud-speed").textContent = String(Math.round(player.speed));
-  el("hud-car").textContent = player.onFoot ? "ON FOOT" : player.carName.toUpperCase();
-  el("hud-condition").textContent = player.onFoot ? "—" : `CONDITION ${player.carCondition}%`;
-  el("hud-condition-bar").style.width = `${player.carCondition}%`;
-
-  // Radio.
-  el("hud-radio").textContent = radio.label;
-
-  // Location + district standing.
-  const d = districtAt(player.position.x, player.position.z);
-  el("hud-location").textContent = `Solmar Blvd — ${d.name}`;
-  el("hud-standing").textContent = `${d.name} standing: ${d.standing}%`;
-  el("hud-standing-bar").style.width = `${d.standing}%`;
-
-  drawMinimap(game);
-}
-
-// The minimap: a street grid, the beach and ocean, the player arrow,
-// police (blue), mission target (gold), crew (green) and the red
-// search-zone ring while wanted.
-export function drawMinimap(game) {
-  const canvas = el("minimap");
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const S = canvas.width;
-  const W = 220; // world units across the map
-  const toMap = (x, z) => [((x + 110) / W) * S, ((z + 110) / W) * S];
-  ctx.clearRect(0, 0, S, S);
-
-  // Land, beach, ocean.
-  ctx.fillStyle = "#3f5a3a";
-  ctx.fillRect(0, 0, S, S);
-  ctx.fillStyle = "#1e7fa8";
-  ctx.fillRect(toMap(90, -110)[0], 0, S, S);
-  ctx.fillRect(0, toMap(-110, 25)[1], S, S);
-  ctx.fillStyle = "#e8d29a";
-  ctx.fillRect(toMap(78, -110)[0], 0, toMap(90, 0)[0] - toMap(78, 0)[0], S);
-  ctx.fillRect(0, toMap(-110, 14)[1], S, toMap(-110, 25)[1] - toMap(-110, 14)[1]);
-
-  // Street grid.
-  ctx.strokeStyle = "#2b2f36";
-  ctx.lineWidth = 5;
-  for (const z of [0, -45, -90, 45]) {
-    const [, y] = toMap(0, z);
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(S, y);
-    ctx.stroke();
-  }
-  for (const x of [-70, -25, 20, 60]) {
-    const [mx] = toMap(x, 0);
-    ctx.beginPath();
-    ctx.moveTo(mx, 0);
-    ctx.lineTo(mx, S);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = "#f5d76e";
-  ctx.lineWidth = 1;
-  const [, by] = toMap(0, 0);
-  ctx.beginPath();
-  ctx.moveTo(0, by);
-  ctx.lineTo(S, by);
-  ctx.stroke();
-
-  // Search-zone ring while wanted.
-  const { player, police } = game;
-  const [px, py] = toMap(player.position.x, player.position.z);
-  if (police.stars > 0) {
-    ctx.strokeStyle = "rgba(239,68,68,0.9)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(px, py, 18 + police.stars * 6, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(239,68,68,0.12)";
-    ctx.beginPath();
-    ctx.arc(px, py, 18 + police.stars * 6, 0, Math.PI * 2);
-    ctx.fill();
+  function update(time) {
+    $('cash').textContent = formatCash(state.cash);
+    $('clock').textContent = state.clock;
+    const { current, next, progress } = rankFor(state.rp);
+    $('rank-name').textContent = current.name;
+    $('rank-badge').textContent = `RANK ${['NOBODY', 'DRIVER', 'HUSTLER', 'FIXER', 'SHOT CALLER', 'CREW BOSS', 'KINGPIN'].indexOf(current.name) + 1}`;
+    $('rp-text').textContent = next
+      ? `${state.rp.toLocaleString('en-US')} / ${next.rp.toLocaleString('en-US')} RP`
+      : `${state.rp.toLocaleString('en-US')} RP — MAX`;
+    $('rp-fill').style.width = `${Math.round(progress * 100)}%`;
+    updateStars(state.wanted);
+    updateMission();
+    updateDispatch(time);
+    updateWeapons();
+    $('speed').textContent = Math.round(state.speedMph);
+    $('vehicle-name').textContent = state.onFoot ? 'ON FOOT' : 'VORTEX GT';
+    $('health-fill').style.width = `${state.health}%`;
+    $('health-num').textContent = state.health;
+    $('armour-fill').style.width = `${state.armor}%`;
+    $('armour-num').textContent = state.armor;
+    $('condition-fill').style.width = `${state.condition}%`;
+    $('condition-text').textContent = `${state.condition}% DENTED`;
+    drawMinimap(state.playerPos, state.headingRad, state.cruisers, state.roadblock);
   }
 
-  // Mission target (gold diamond) and safehouse (house green).
-  const [tx, ty] = toMap(34, -20);
-  ctx.fillStyle = "#facc15";
-  ctx.beginPath();
-  ctx.moveTo(tx, ty - 7);
-  ctx.lineTo(tx + 6, ty);
-  ctx.lineTo(tx, ty + 7);
-  ctx.lineTo(tx - 6, ty);
-  ctx.closePath();
-  ctx.fill();
-  const [hx, hy] = toMap(-25, -45);
-  ctx.fillStyle = "#22c55e";
-  ctx.fillRect(hx - 4, hy - 4, 8, 8);
+  function showDialogue(speaker, text) {
+    $('dialogue-name').textContent = speaker;
+    $('dialogue-text').textContent = text;
+    $('dialogue-avatar').textContent = speaker.charAt(0);
+  }
 
-  // Traffic (white), police (blue), gang (purple).
-  const dot = (x, z, color, r = 3) => {
-    const [mx, my] = toMap(x, z);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(mx, my, r, 0, Math.PI * 2);
-    ctx.fill();
-  };
-  for (const c of game.traffic) dot(c.position.x, c.position.z, "#e2e8f0", 2.5);
-  for (const c of police.cruisers) dot(c.position.x, c.position.z, "#3b82f6", 3.5);
-  if (police.heli) dot(police.heli.position.x, police.heli.position.z, "#38bdf8", 4);
-  for (const g of game.combat.gang) dot(g.position.x, g.position.z, "#a855f7", 3);
-
-  // Player arrow (white triangle, pointing along heading).
-  ctx.save();
-  ctx.translate(px, py);
-  ctx.rotate(-player.heading);
-  ctx.fillStyle = "#ffffff";
-  ctx.strokeStyle = "#0f172a";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(8, 0);
-  ctx.lineTo(-6, -5.5);
-  ctx.lineTo(-6, 5.5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
-// Dialogue box: a named character, their portrait and role, and a line.
-export function showDialogue(name, role, color, initials, line) {
-  el("hud-dialogue-face").textContent = initials;
-  el("hud-dialogue-face").style.background = color;
-  el("hud-dialogue-name").textContent = name;
-  el("hud-dialogue-role").textContent = role;
-  el("hud-dialogue-line").textContent = line;
-  el("hud-dialogue").classList.remove("hidden");
-}
-
-export function hideDialogue() {
-  el("hud-dialogue").classList.add("hidden");
-}
-
-// Toast: a short centred message (mission updates, saves, pickups).
-let toastTimer = null;
-export function showToast(text, ms = 2600) {
-  const t = el("hud-toast");
-  t.textContent = text;
-  t.classList.remove("hidden");
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add("hidden"), ms);
+  return { update, showDialogue };
 }

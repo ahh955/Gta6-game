@@ -1,91 +1,74 @@
-# Solmar City 3D — Make GTA 6 (round 6)
+# Solmar City 3D — Make GTA 6 (gta6-01, round 8)
 
-[![Make GTA 6](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
-[![Rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/bounty/gta6-01)
-[![Reward](https://make.fun/badge/gta6-01/ahh955/Gta6-game/reward.svg)](https://make.fun/bounty/gta6-01)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Play on make.fun](https://img.shields.io/badge/Play-Solmar_City_3D-ff7a1a)](https://make.fun/c/gta6-01)
+[![Built with Three.js](https://img.shields.io/badge/Built_with-Three.js-000000)](https://threejs.org/)
 
-An original open-world crime game in the spirit of GTA 6, built from scratch in
-three.js for the [make.fun gta6-01 bounty](https://make.fun/bounty/gta6-01).
-No Rockstar names, characters, maps or assets — Solmar City, its people and its
-story are all invented here.
+An open-world 3D driving game in the browser: a sun-soaked beach boulevard,
+ten story missions, a crew to build, and Solmar PD closing in from every
+direction. You are Alex "Vex" Marlowe, a driver fresh off the ferry — steal a
+car, run the jobs, climb from nobody to kingpin.
 
-## Play it
+![Four-star chase down the Strand](screenshots/1-chase.jpg)
+![Beach drive with the ocean beside you](screenshots/2-beach.jpg)
+![On-foot shootout by the car](screenshots/3-shootout.jpg)
+![Golden hour over the boulevard](screenshots/4-golden-hour.jpg)
 
-```sh
-cd game
-python3 -m http.server 8080
+## Play
+
+```bash
+node serve.ts
 ```
 
-Then open <http://localhost:8080> in desktop Chrome. Everything is static files
-under `game/` — three.js is vendored as `game/vendor/three.module.min.js` — so
-the game runs fully offline with no network request.
+Then open http://localhost:8080 in a desktop browser. No build step, no
+network needed at runtime: Three.js is vendored under `game/vendor/`, and
+every texture is drawn procedurally in code.
 
-## The game
+## Controls
 
-**Solmar City** is a sun-soaked coastal crime city: a palm-lined beach
-boulevard, a neon casino strip, a marina, a port, and six districts, each with
-its own standing. You play **Dara "Vex" Marlowe**, a wheelman climbing the
-underworld from street racer to fixer.
+| Key | Action |
+| --- | ------ |
+| W / A / S / D | Drive (accelerate, steer, brake) |
+| Space | Handbrake |
+| F | Get in / out of the car |
+| M | Mira's ability — swap plates, drop a wanted star |
+| L | Lio's ability — quick repair |
+| K | Kiki's ability — reveal police on the minimap |
+| 1–5 | Switch weapon (fists, .38, SMG, 12G, AR-9) |
+| Esc | Pause |
 
-- **10 story missions** with stages, timers, objectives and NEXT steps, from a
-  first getaway to a casino-vault heist.
-- **Solmar PD dispatch**: 6+ named units (KITE-1, MARLIN-3, CORAL-48, TERN 5,
-  HERON 2, MAKO 6) with live status chips and distances; a 5-star wanted
-  system, PIT maneuvers and roadblocks at 3+ stars, and a police helicopter
-  with a spotlight cone at 4–5 stars.
-- **Combat**: a weapon wheel with 5+ weapons and ammo, a cover system, gang AI
-  and shootouts.
-- **Crew**: a 3-person crew — driver, mechanic, lookout — each with an ability
-  and a portrait.
-- **Progression**: 7 respect ranks, 6-district standing, a garage, shops and a
-  safehouse, plus 5 street races.
-- **World**: traffic cars and fleeing pedestrians, a detailed minimap with a
-  street grid and a red search-zone ring, 3 WebAudio radio stations with named
-  songs, and a save system (localStorage).
-- **Controls**: WASD drive / walk, Space handbrake, E enter–exit car, F steal
-  car, R radio, Q weapon wheel, C cover, M map, P pause, Tab missions.
+## What's in the game
+
+- **A living city:** a beach boulevard with pastel towers, neon shop signs,
+  striped awnings, curved palms with drooping fronds, a Ferris wheel on the
+  pier, traffic, pedestrians, a scooter rider and beach umbrellas.
+- **Ten story missions** across seven districts, from FIRST GEAR to SOLMAR
+  BELONGS TO US, with named contacts, dialogue and payouts.
+- **A five-star wanted system:** patrols, PIT attempts, roadblocks, spike
+  strips and the CONDOR-1 helicopter with a spotlight at four stars.
+- **A crew with abilities:** Mira (driver), Lio (mechanic), Kiki (lookout).
+- **Progression:** cash, RP, seven respect ranks from NOBODY to KINGPIN,
+  district standing, a garage, five weapons, and save/load via localStorage.
+- **Procedural audio:** engine hum, siren wail and a radio jingle, all
+  synthesized with WebAudio — no audio files.
 
 ## Screenshots
 
-The four screenshots in `screenshots/` are real renders of this game, taken
-with headless Chromium from the staging URLs the game itself supports:
+The four staged shots (`shots.json`, all `?seed=1` for a fixed city):
 
-| Shot | Scene |
-| --- | --- |
-| `01-chase.jpg` | 4-star chase at 100+ MPH, three cruisers, police heli with spotlight |
-| `02-drive.jpg` | Beach boulevard at speed, traffic and pedestrians |
-| `03-mission.jpg` | Mid-shootout on foot, muzzle flash and fleeing pedestrians |
-| `04-city.jpg` | Wide golden-hour view of the whole city |
-
-Staging is a first-class feature of the game: `?shot=cover|drive|mission|city`
-sets up each exact mid-game scene (player state, car, cruisers, heli, HUD) so
-the screenshots show the game at its best. The same scenes are reachable by
-playing — drive fast past the cops and the chase finds you.
+1. `1-chase.jpg` — four-star chase, 104 MPH, cruisers flanking, CONDOR-1 overhead
+2. `2-beach.jpg` — beach drive with the ocean on the right
+3. `3-shootout.jpg` — on foot by the car, mid-mission
+4. `4-golden-hour.jpg` — golden-hour vista down the whole boulevard
 
 ## Layout
 
-```
-main.ts            entry program: copies game/ + screenshots/ to /output,
-                   writes dossier.json with vendor/makefun-game.ts
-game/
-  index.html       the game page (HUD, menus, import map)
-  src/
-    main.js        boot, game loop, input wiring
-    city.js        Solmar City: districts, buildings, roads, palms, beach
-    vehicles.js    cars, traffic, police cruisers, helicopter
-    player.js      on-foot + driving character and camera
-    police.js      wanted level, dispatch, PIT, roadblocks, spotlight
-    missions.js    10 story missions, stages, timers, objectives
-    combat.js      weapon wheel, cover system, gang AI
-    crew.js        3-person crew, abilities, portraits
-    hud.js         HUD, minimap, dispatch panel, dialogue
-    audio.js       3 WebAudio radio stations + sound effects
-    save.js        save/load (localStorage)
-    staging.js     ?shot= staging scenes for screenshots
-  vendor/
-    three.module.min.js   three.js 0.160.0, vendored
-screenshots/      4 real renders, 1280x720, each under 256 KiB
-```
+- `game/` — the game (index.html, style.css, src/, vendor/three.module.min.js)
+- `screenshots/` — the four staged JPEGs
+- `main.ts` — entrypoint: copies game/ + screenshots/ into the output
+  directory and writes `dossier.json` (writes only inside the output dir)
+- `serve.ts` — local static server for playing the game
+- `vendor/makefun-game.ts` — the competition kit's dossier builder (unchanged)
 
 ## License
 

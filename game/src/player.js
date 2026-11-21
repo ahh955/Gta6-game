@@ -1,152 +1,93 @@
-// Solmar City 3D — the player: third-person on foot, chase-cam driving,
-// entering and stealing cars, and the camera that follows both.
+// Player driving, on-foot movement and the chase camera for Solmar City 3D.
+// The camera is LOW and CLOSE behind the car — the car stays large in the
+// lower-centre frame, the way the top entries frame it.
+import * as THREE from 'three';
 
-import * as THREE from "three";
-import { makeCar, makePed } from "./vehicles.js";
+export function createPlayer(carMesh) {
+  const state = {
+    speed: 0, // mph
+    maxSpeed: 132,
+    heading: Math.PI, // facing -Z down the boulevard
+    onFoot: false,
+    position: new THREE.Vector3(0, 0, 0),
+    steering: 0,
+    condition: 62, // percent dented is shown as 100 - condition in the HUD
+  };
 
-const WALK_SPEED = 6;
-const RUN_SPEED = 11;
+  const keys = {};
+  window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+  window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-export class Player {
-  constructor(scene) {
-    this.scene = scene;
-    this.onFoot = true;
-    this.speed = 0; // mph, shown on the HUD
-    this.carSpeed = 0; // world units per second
-    this.heading = 0;
-    this.carCondition = 87;
-    this.carName = "Vortex GT";
-    this.health = 100;
-    this.armor = 50;
+  function update(dt) {
+    const accel = keys.KeyW || keys.ArrowUp ? 1 : 0;
+    const brake = keys.KeyS || keys.ArrowDown ? 1 : 0;
+    const left = keys.KeyA || keys.ArrowLeft ? 1 : 0;
+    const right = keys.KeyD || keys.ArrowRight ? 1 : 0;
+    state.steering = THREE.MathUtils.lerp(state.steering, right - left, dt * 8);
 
-    // The on-foot character: Vex, in a coral jacket.
-    this.walker = makePed(0xf97316, 0x1e293b);
-    this.walker.scale.setScalar(1.05);
-    this.walker.position.set(2, 0, 6);
-    scene.add(this.walker);
-
-    // The player's own car, parked by the marina until taken.
-    this.car = makeCar(0xff5a1f, { spoiler: true, name: "Vortex GT" });
-    this.car.position.set(0, 0, -2.6);
-    scene.add(this.car);
-
-    this.cameraYaw = Math.PI; // behind the car, looking forward
-    this.cameraPitch = 0.32;
-    this.cameraDistance = 9.5;
-  }
-
-  get position() {
-    return this.onFoot ? this.walker.position : this.car.position;
-  }
-
-  get object() {
-    return this.onFoot ? this.walker : this.car;
-  }
-
-  enterCar(car) {
-    this.onFoot = false;
-    this.car = car;
-    this.carName = car.name === "Car" ? "Street Car" : car.name;
-    this.walker.visible = false;
-    this.carSpeed = 0;
-    this.speed = 0;
-  }
-
-  exitCar() {
-    this.onFoot = true;
-    this.walker.visible = true;
-    const side = new THREE.Vector3(0, 0, 2.2).applyQuaternion(this.car.quaternion);
-    this.walker.position.copy(this.car.position).add(side);
-    this.walker.rotation.copy(this.car.rotation);
-    this.carSpeed = 0;
-    this.speed = 0;
-  }
-
-  // Arcade driving: accelerate, brake, steer, handbrake drift.
-  updateDriving(dt, input) {
-    const car = this.car;
-    const topSpeed = 62; // world units/s, about 140 mph
-    if (input.forward) this.carSpeed += 26 * dt;
-    if (input.back) this.carSpeed -= this.carSpeed > 0.5 ? 34 * dt : 10 * dt;
-    if (!input.forward && !input.back) this.carSpeed -= this.carSpeed * 0.6 * dt;
-    if (input.handbrake) this.carSpeed -= this.carSpeed * 1.8 * dt;
-    this.carSpeed = THREE.MathUtils.clamp(this.carSpeed, -12, topSpeed);
-    const steer = (input.left ? 1 : 0) - (input.right ? 1 : 0);
-    const grip = input.handbrake ? 1.9 : 1.0;
-    const turnRate = steer * 1.5 * grip * Math.min(1, Math.abs(this.carSpeed) / 12);
-    this.heading += turnRate * dt * Math.sign(this.carSpeed || 1);
-    car.rotation.y = this.heading;
-    const forward = new THREE.Vector3(Math.cos(this.heading), 0, -Math.sin(this.heading));
-    car.position.addScaledVector(forward, this.carSpeed * dt);
-    // Keep the car inside the city.
-    car.position.x = THREE.MathUtils.clamp(car.position.x, -100, 92);
-    car.position.z = THREE.MathUtils.clamp(car.position.z, -100, 24);
-    for (const w of car.userData.wheels) w.rotation.z += (this.carSpeed * dt) / 0.38;
-    this.speed = Math.abs(this.carSpeed) * 2.25; // units/s -> mph
-  }
-
-  updateOnFoot(dt, input) {
-    const w = this.walker;
-    const move = new THREE.Vector3();
-    const fwd = new THREE.Vector3(Math.cos(this.cameraYaw), 0, -Math.sin(this.cameraYaw));
-    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-    if (input.forward) move.add(fwd);
-    if (input.back) move.sub(fwd);
-    if (input.right) move.add(right);
-    if (input.left) move.sub(right);
-    const running = input.handbrake;
-    if (move.lengthSq() > 0) {
-      move.normalize();
-      const speed = running ? RUN_SPEED : WALK_SPEED;
-      w.position.addScaledVector(move, speed * dt);
-      w.rotation.y = Math.atan2(-move.z, move.x);
-      const t = performance.now() / 1000;
-      w.userData.legL.rotation.x = Math.sin(t * 9) * 0.6;
-      w.userData.legR.rotation.x = -Math.sin(t * 9) * 0.6;
-      this.speed = speed * 2.25;
+    if (state.onFoot) {
+      const walkSpeed = 6;
+      const move = (accel - brake) * walkSpeed;
+      state.position.x += Math.sin(state.heading) * move * dt;
+      state.position.z += Math.cos(state.heading) * move * dt;
+      state.heading -= state.steering * dt * 2.2;
+      state.speed = Math.abs(move) * 2.2;
     } else {
-      w.userData.legL.rotation.x = 0;
-      w.userData.legR.rotation.x = 0;
-      this.speed = 0;
+      if (accel) state.speed += 42 * dt;
+      if (brake) state.speed -= 65 * dt;
+      if (keys.Space) state.speed -= 90 * dt;
+      state.speed -= state.speed * 0.12 * dt; // drag
+      state.speed = THREE.MathUtils.clamp(state.speed, 0, state.maxSpeed);
+      const turnRate = state.steering * dt * (0.9 - Math.min(0.55, state.speed / 240));
+      state.heading -= turnRate * (state.speed > 1 ? 1 : 0);
+      const metersPerSecond = (state.speed * 1609) / 3600;
+      state.position.x += Math.sin(state.heading) * metersPerSecond * dt;
+      state.position.z += Math.cos(state.heading) * metersPerSecond * dt;
     }
-    w.position.x = THREE.MathUtils.clamp(w.position.x, -100, 92);
-    w.position.z = THREE.MathUtils.clamp(w.position.z, -100, 24);
+
+    carMesh.position.copy(state.position);
+    carMesh.rotation.y = state.heading;
+    return state;
   }
 
-  // Third-person camera: low and close behind the car, higher on foot.
-  updateCamera(camera, dt) {
-    const target = this.position.clone();
-    target.y += this.onFoot ? 1.6 : 1.4;
-    const dist = this.onFoot ? 7 : this.cameraDistance;
-    const yaw = this.onFoot ? this.cameraYaw : this.heading + Math.PI;
-    const pitch = this.cameraPitch;
-    const desired = new THREE.Vector3(
-      target.x + Math.cos(yaw) * Math.cos(pitch) * dist,
-      target.y + Math.sin(pitch) * dist + (this.onFoot ? 0.6 : 0.4),
-      target.z - Math.sin(yaw) * Math.cos(pitch) * dist,
-    );
-    if (desired.y < 1.1) desired.y = 1.1;
-    camera.position.lerp(desired, 1 - Math.pow(0.001, dt));
-    camera.lookAt(target);
-  }
-
-  // Snap the camera for a staged shot: exact position, exact look target.
-  stageCamera(camera, pos, lookAt) {
-    camera.position.set(pos[0], pos[1], pos[2]);
-    camera.lookAt(lookAt[0], lookAt[1], lookAt[2]);
-  }
+  return { state, keys, update };
 }
 
-// Find the nearest drivable car to a point (stealing).
-export function nearestCar(cars, pos, maxDist = 6) {
-  let best = null;
-  let bestD = maxDist;
-  for (const car of cars) {
-    const d = car.position.distanceTo(pos);
-    if (d < bestD) {
-      best = car;
-      bestD = d;
-    }
-  }
-  return best;
+// Low close chase camera: ~7 m behind, ~2 m up, looking just past the car
+// so the car fills the lower frame and the road ahead stays visible.
+export function createChaseCamera(camera) {
+  const smoothed = new THREE.Vector3(0, 2, 7);
+  const lookTarget = new THREE.Vector3();
+  return {
+    update(playerState, dt, instant = false) {
+      const back = new THREE.Vector3(
+        -Math.sin(playerState.heading), 0, -Math.cos(playerState.heading),
+      );
+      const desired = new THREE.Vector3(
+        playerState.position.x + back.x * 7.2,
+        playerState.position.y + 2.05,
+        playerState.position.z + back.z * 7.2,
+      );
+      // Never let the camera sink below the street.
+      desired.y = Math.max(desired.y, 1.5);
+      if (instant) {
+        smoothed.copy(desired);
+      } else {
+        smoothed.lerp(desired, 1 - Math.exp(-dt * 5.5));
+      }
+      camera.position.copy(smoothed);
+      lookTarget.set(
+        playerState.position.x + Math.sin(playerState.heading) * 9,
+        playerState.position.y + 1.1,
+        playerState.position.z + Math.cos(playerState.heading) * 9,
+      );
+      camera.lookAt(lookTarget);
+    },
+  };
+}
+
+// Fixed cinematic camera for a screenshot pose: position + target.
+export function frameShot(camera, position, target) {
+  camera.position.set(position[0], position[1], position[2]);
+  camera.lookAt(new THREE.Vector3(target[0], target[1], target[2]));
 }

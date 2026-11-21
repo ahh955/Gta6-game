@@ -1,43 +1,34 @@
-// Solmar City 3D — save system: the player's progress in localStorage,
-// loaded on boot and written on every mission advance and manual save.
+// Save/load for Solmar City 3D: progress, cash, rank, garage and mission
+// state persist in localStorage; safehouses autosave on entry.
+const SAVE_KEY = 'solmar-city-3d-save-v1';
 
-const SAVE_KEY = "solmar-city-3d-save-v1";
-
-export function defaultSave() {
-  return {
-    cash: 18450,
-    rp: 6200,
-    missionIndex: 5,
-    stageIndex: 2,
-    completedMissions: 5,
-    garage: ["Vortex GT", "Marlin S", "Coral Cruiser"],
-    districtStanding: {
-      marina: 62,
-      boulevard: 48,
-      casino: 71,
-      port: 35,
-      oldtown: 54,
-      hills: 28,
-    },
-    racesWon: 2,
-    savedAt: null,
-  };
-}
+export const DEFAULT_SAVE = {
+  cash: 250,
+  rp: 0,
+  missionId: 1,
+  missionStage: 1,
+  completedMissions: [],
+  garage: ['VORTEX GT'],
+  ownedWeapons: ['FISTS', '.38'],
+  districtStanding: {},
+  playtimeMinutes: 0,
+  savedAt: null,
+};
 
 export function loadSave() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return defaultSave();
-    const parsed = JSON.parse(raw);
-    return { ...defaultSave(), ...parsed };
+    if (!raw) return { ...DEFAULT_SAVE };
+    return { ...DEFAULT_SAVE, ...JSON.parse(raw) };
   } catch {
-    return defaultSave();
+    return { ...DEFAULT_SAVE };
   }
 }
 
-export function writeSave(data) {
+export function writeSave(state) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() }));
+    const data = { ...state, savedAt: new Date().toISOString() };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     return true;
   } catch {
     return false;
@@ -45,10 +36,5 @@ export function writeSave(data) {
 }
 
 export function clearSave() {
-  try {
-    localStorage.removeItem(SAVE_KEY);
-    return true;
-  } catch {
-    return false;
-  }
+  try { localStorage.removeItem(SAVE_KEY); } catch { /* storage unavailable */ }
 }

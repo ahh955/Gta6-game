@@ -1,0 +1,128 @@
+/* Solmar City 3D — HUD styling. Panels hug the edges and stay compact so the
+   3D street owns the middle of the frame. */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1020; }
+body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+#hud { position: fixed; inset: 0; pointer-events: none; font-size: 14px; }
+.panel {
+  position: absolute; background: rgba(8, 12, 24, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px;
+  padding: 8px 10px; backdrop-filter: blur(2px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* --- mission tracker, top-left --- */
+#mission { top: 12px; left: 12px; width: 248px; border-top: 3px solid #facc15; }
+.mission-head { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 1px; color: #fde68a; font-weight: 700; }
+#mission-name { font-size: 19px; letter-spacing: 0.5px; margin: 3px 0 4px; font-weight: 900; }
+.stage-row { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: #fde68a; }
+.stage-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden; }
+.stage-bar i { display: block; height: 100%; width: 75%; background: #facc15; }
+#mission-objective { font-size: 12px; color: #e2e8f0; margin-top: 4px; line-height: 1.35; }
+.next-line { font-size: 11px; color: #94a3b8; margin-top: 3px; }
+.next-line b { color: #fff; }
+
+/* --- dispatch, left --- */
+#dispatch { top: 160px; left: 12px; width: 248px; }
+.dispatch-head { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 1px; font-weight: 800; color: #fca5a5; }
+.dispatch-head b { color: #fff; }
+#dispatch-list { list-style: none; margin-top: 6px; }
+#dispatch-list li { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+#dispatch-list li:first-child { border-top: none; }
+.unit-name { font-weight: 700; letter-spacing: 0.4px; }
+.unit-dist { color: #94a3b8; font-size: 11px; }
+.chip { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.5px; }
+.chip.red { background: #dc2626; } .chip.orange { background: #ea580c; }
+.chip.blue { background: #2563eb; } .chip.yellow { background: #ca8a04; }
+.chip.purple { background: #7c3aed; } .chip.green { background: #16a34a; }
+.dispatch-foot { font-size: 11px; color: #fca5a5; margin-top: 5px; font-weight: 600; }
+
+/* --- status, top-right --- */
+#status { top: 12px; right: 12px; width: 210px; text-align: right; }
+.cash-row { display: flex; justify-content: space-between; align-items: baseline; }
+#clock { font-size: 12px; color: #94a3b8; }
+#cash { font-size: 26px; font-weight: 900; color: #4ade80; letter-spacing: 0.5px; }
+.stars { font-size: 22px; color: #facc15; letter-spacing: 2px; line-height: 1.1; }
+.stars i { color: rgba(255,255,255,0.25); font-style: normal; }
+.air-unit { font-size: 11px; font-weight: 800; color: #f87171; letter-spacing: 1px; margin-top: 2px; }
+.rank-row { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; }
+#rank-badge { background: #0ea5e9; padding: 2px 6px; border-radius: 4px; font-weight: 800; }
+#rank-name { font-weight: 900; letter-spacing: 1px; }
+.rp-bar { height: 6px; background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.rp-bar i { display: block; height: 100%; width: 69%; background: #0ea5e9; }
+.rp-text { font-size: 11px; color: #94a3b8; text-align: right; margin-top: 2px; }
+
+/* --- weapons, right --- */
+#weapons { top: 172px; right: 12px; width: 150px; padding: 6px 8px; }
+.weapon { display: flex; align-items: center; gap: 6px; padding: 3px 2px; font-size: 12px; border-radius: 4px; }
+.weapon.active { background: rgba(250, 204, 21, 0.25); outline: 1px solid rgba(250,204,21,0.6); }
+.w-key { font-size: 10px; color: #94a3b8; width: 12px; }
+.w-name { font-weight: 700; flex: 1; }
+.w-ammo { color: #fde68a; font-weight: 700; }
+
+/* --- crew, right --- */
+#crew { top: 318px; right: 12px; width: 210px; padding: 6px 8px; }
+.crew-member { display: flex; align-items: center; gap: 8px; padding: 5px 2px; border-top: 1px solid rgba(255,255,255,0.08); }
+.crew-member:first-child { border-top: none; }
+.crew-avatar { width: 30px; height: 30px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; background: var(--av, #666); color: #0b1020; }
+.crew-member div { flex: 1; }
+.crew-member b { display: block; font-size: 12px; letter-spacing: 0.4px; }
+.crew-member span { font-size: 11px; color: #94a3b8; }
+.crew-member em { font-style: normal; font-size: 10px; font-weight: 800; color: #4ade80; }
+
+/* --- map block, bottom-left --- */
+#map-block { position: absolute; left: 12px; bottom: 12px; width: 220px; }
+#location { position: static; margin-bottom: 6px; }
+#location b { display: block; font-size: 14px; letter-spacing: 0.6px; }
+#location span { font-size: 11px; color: #94a3b8; }
+.standing { height: 5px; background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.standing i { display: block; height: 100%; background: #4ade80; }
+.standing-text { font-size: 10px !important; }
+#minimap { width: 220px; height: 220px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); box-shadow: 0 2px 12px rgba(0,0,0,0.5); background: #101c2e; }
+#vitals { position: static; margin-top: 6px; }
+.vital { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: 11px; font-weight: 700; }
+.vital-bar { flex: 1; height: 7px; background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden; }
+.vital-bar i { display: block; height: 100%; }
+.vital-bar i.health { width: 72%; background: #22c55e; }
+.vital-bar i.armour { width: 55%; background: #3b82f6; }
+
+/* --- dialogue, bottom-center --- */
+#dialogue { bottom: 12px; left: 50%; transform: translateX(-50%); width: 460px; display: flex; gap: 10px; align-items: center; }
+.dialogue-avatar { width: 44px; height: 44px; border-radius: 8px; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 22px; background: linear-gradient(135deg, #f472b6, #8b5cf6); }
+#dialogue-name { font-size: 12px; color: #f9a8d4; letter-spacing: 1px; }
+#dialogue-text { font-size: 13px; line-height: 1.4; color: #f1f5f9; }
+
+/* --- speedometer, bottom-right --- */
+#speedo { bottom: 12px; right: 12px; width: 200px; text-align: right; }
+.speed-row b { font-size: 44px; font-weight: 900; line-height: 0.9; }
+.speed-row span { font-size: 13px; color: #94a3b8; margin-left: 4px; font-weight: 700; }
+#vehicle-name { font-size: 13px; font-weight: 800; color: #fde68a; letter-spacing: 1px; }
+.condition { font-size: 11px; color: #fca5a5; margin-top: 3px; font-weight: 700; }
+.condition-bar { height: 5px; background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden; margin-top: 2px; }
+.condition-bar i { display: block; height: 100%; width: 62%; background: #f97316; }
+#radio { font-size: 11px; color: #7dd3fc; margin-top: 5px; }
+
+#banner {
+  position: absolute; top: 34%; left: 50%; transform: translateX(-50%);
+  font-size: 30px; font-weight: 900; letter-spacing: 3px; color: #fff;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.8); display: none; text-align: center;
+}
+#hint { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); font-size: 10px; color: rgba(255,255,255,0.45); }
+
+/* --- title screen + pause --- */
+#title-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(10,16,32,0.25), rgba(10,16,32,0.78)); z-index: 10; }
+.title-card { text-align: center; max-width: 640px; padding: 32px; }
+.title-card h1 { font-size: 64px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 4px 24px rgba(0,0,0,0.7); }
+.title-card h1 span { color: #facc15; }
+.tagline { font-size: 16px; color: #e2e8f0; margin: 8px 0 18px; }
+.title-state { font-size: 13px; color: #fde68a; font-weight: 700; margin-bottom: 16px; }
+#play-btn { pointer-events: auto; cursor: pointer; font-size: 20px; font-weight: 900; letter-spacing: 1px; color: #0b1020; background: #facc15; border: none; border-radius: 10px; padding: 14px 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+#play-btn:hover { background: #fde047; }
+.title-foot { font-size: 12px; color: #94a3b8; margin-top: 16px; }
+#pause-menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,8,18,0.7); z-index: 10; }
+#pause-menu[hidden] { display: none; }
+.pause-card { background: rgba(10,16,32,0.9); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 28px 40px; }
+.pause-card h2 { font-size: 28px; letter-spacing: 3px; margin-bottom: 12px; }
+.pause-card li { font-size: 15px; padding: 6px 0; color: #e2e8f0; list-style: none; }
