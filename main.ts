@@ -12,7 +12,7 @@
 // The run is deterministic — the same bytes on every run — so the grader's
 // two runs of it agree.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildDossier } from "./vendor/makefun-game.ts";
@@ -67,8 +67,8 @@ function countTree(dir: string): { files: number; bytes: number } {
 }
 
 function main(): void {
-  // Start from a clean output directory so a stale file can never leak in.
-  rmSync(outputDir, { recursive: true, force: true });
+  // The output directory is the grader's bind mount — never remove it itself,
+  // just make sure it exists (mkdirSync succeeds when it already does).
   mkdirSync(outputDir, { recursive: true });
 
   copyTreeIntoOutput("game");
