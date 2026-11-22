@@ -311,6 +311,80 @@ export function buildScooter(riderColor = 0xf97316) {
   return group;
 }
 
+// Vehicle catalogue: every drivable type in the city, with top speed and
+// where it spawns. The KILO 600 bike is the fastest way through traffic
+// and the night shot's ride.
+export const VEHICLES = [
+  { id: 'vortex-gt', name: 'VORTEX GT', type: 'SPORTS CAR', topSpeedKmh: 212, spawn: 'Strand Boulevard' },
+  { id: 'kilo-600', name: 'KILO 600', type: 'MOTORBIKE', topSpeedKmh: 228, spawn: 'Coral Docks' },
+  { id: 'cruiser', name: 'SOLMAR PD CRUISER', type: 'POLICE', topSpeedKmh: 196, spawn: 'Downtown' },
+  { id: 'sedan', name: 'CITY SEDAN', type: 'TRAFFIC', topSpeedKmh: 150, spawn: 'Everywhere' },
+  { id: 'scooter', name: 'DELIVERY SCOOTER', type: 'SCOOTER', topSpeedKmh: 80, spawn: 'Strand Boulevard' },
+];
+
+// The Kilo 600 motorbike: a low sport bike with a rider in leathers.
+export function buildBike(color = 0x16a34a, withRider = true) {
+  const bike = new THREE.Group();
+  const paint = paintMaterial(color);
+  // Wheels.
+  for (const x of [0.62, -0.62]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.12, 18), darkMaterial());
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(x, 0.32, 0);
+    bike.add(wheel);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.14, 10),
+      new THREE.MeshStandardMaterial({ color: 0xd7dde3, metalness: 0.9, roughness: 0.25 }));
+    hub.rotation.x = Math.PI / 2;
+    hub.position.set(x, 0.32, 0);
+    bike.add(hub);
+  }
+  // Frame + tank + seat + tail.
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 0.12), darkMaterial());
+  frame.position.set(0, 0.55, 0);
+  bike.add(frame);
+  const tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.3), paint);
+  tank.position.set(0.18, 0.72, 0);
+  bike.add(tank);
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.09, 0.26), darkMaterial());
+  seat.position.set(-0.32, 0.7, 0);
+  bike.add(seat);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.24), paint);
+  tail.position.set(-0.62, 0.74, 0);
+  bike.add(tail);
+  // Front fork + handlebars + headlight.
+  const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.75, 8), darkMaterial(0x555b62));
+  fork.position.set(0.58, 0.55, 0);
+  fork.rotation.z = -0.35;
+  bike.add(fork);
+  const bars = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.5, 8), darkMaterial(0x555b62));
+  bars.rotation.x = Math.PI / 2;
+  bars.position.set(0.5, 0.88, 0);
+  bike.add(bars);
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xfff6c9, emissive: 0xfff2a8, emissiveIntensity: 2.4 });
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.22), headMat);
+  head.position.set(0.68, 0.62, 0);
+  bike.add(head);
+  addGlowSprite(bike, 0.78, 0.62, 0, 0xfff2a8, 0.7);
+  if (withRider) {
+    const leathers = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 });
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.19, 0.4, 4, 10), leathers);
+    torso.position.set(-0.28, 1.08, 0);
+    torso.rotation.z = 0.35;
+    bike.add(torso);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10),
+      new THREE.MeshStandardMaterial({ color, metalness: 0.6, roughness: 0.3 }));
+    helmet.position.set(-0.12, 1.42, 0);
+    bike.add(helmet);
+    for (const s of [1, -1]) {
+      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.42, 3, 8), leathers);
+      leg.position.set(-0.18, 0.62, s * 0.16);
+      leg.rotation.x = s * 0.3;
+      bike.add(leg);
+    }
+  }
+  return bike;
+}
+
 // Alternate the cruiser light bars: red and blue swap every half second.
 export function updateCruiserFlash(cruiser, time) {
   const flash = cruiser.userData.flash;

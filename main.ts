@@ -1,4 +1,4 @@
-// Solmar City 3D — entrypoint for the gta6-01 competition (round 9).
+// Solmar City 3D — entrypoint for the gta6-01 competition (round 10).
 // Stages the game for the judge: copies game/ and screenshots/ into the
 // output directory, then writes dossier.json via the kit's builder.
 //
@@ -44,6 +44,6 @@ const shotBytes = existsSync(join(outDir, 'screenshots'))
     .reduce((sum, size) => sum + size, 0)
   : 0;
 console.log(
-  `Solmar City 3D (round 9): ${gameEntries} game entries, ${shotEntries} screenshots `
+  `Solmar City 3D (round 10): ${gameEntries} game entries, ${shotEntries} screenshots `
   + `(${shotBytes} bytes), dossier ${dossier.length} bytes -> ${join(outDir, 'dossier.json')}`,
 );

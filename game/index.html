@@ -17,27 +17,28 @@
   <!-- top-left: mission tracker -->
   <section id="mission" class="panel">
     <div class="mission-head"><span id="mission-num">MISSION 6</span><span id="mission-timer">2:27</span></div>
-    <h1 id="mission-name">WRECK THE REGENT</h1>
+    <h1 id="mission-name">SINK THE VANGUARD</h1>
     <div class="stage-row"><span id="mission-stage">STAGE 3/4</span><div class="stage-bar"><i id="mission-stage-fill"></i></div></div>
-    <p id="mission-objective">Wreck Oru's Regent before it reaches the pier</p>
+    <p id="mission-objective">Sink Voss's Vanguard before it reaches the pier</p>
     <p class="next-line">NEXT <b id="mission-next">Vanish</b></p>
   </section>
 
-  <!-- left: police dispatch -->
+  <!-- left: police dispatch + radio log -->
   <section id="dispatch" class="panel">
     <div class="dispatch-head"><span>SOLMAR PD RESPONSE</span><b id="dispatch-count">6 UNITS</b></div>
     <ul id="dispatch-list"></ul>
+    <p class="dispatch-log" id="dispatch-log">KESTREL-9: overhead, spotlight on the suspect</p>
     <p class="dispatch-foot" id="dispatch-foot">+2 more units — roadblock ahead</p>
   </section>
 
   <!-- top-right: money, wanted, rank -->
   <section id="status" class="panel">
-    <div class="cash-row"><span id="clock">16:00</span><b id="cash">$18,450</b></div>
+    <div class="cash-row"><span id="clock">16:42</span><b id="cash">$21,380</b></div>
     <div class="stars" id="stars">★★★★<i>☆</i></div>
     <div class="air-unit" id="air-unit">AIR UNIT DEPLOYED</div>
-    <div class="rank-row"><span id="rank-badge">RANK 6</span><b id="rank-name">FIXER</b></div>
+    <div class="rank-row"><span id="rank-badge">RANK 4</span><b id="rank-name">OPERATOR</b></div>
     <div class="rp-bar"><i id="rp-fill"></i></div>
-    <div class="rp-text"><span id="rp-text">6,200 / 9,000 RP</span></div>
+    <div class="rp-text"><span id="rp-text">6,200 / 6,500 RP</span></div>
   </section>
 
   <!-- right: weapons -->
@@ -49,16 +50,22 @@
     <div class="weapon"><span class="w-key">5</span><span class="w-name">AR-9</span><span class="w-ammo">120</span></div>
   </section>
 
-  <!-- right: crew -->
+  <!-- right: crew (painted portraits, drawn by portraits.js) -->
   <section id="crew" class="panel">
-    <div class="crew-member"><span class="crew-avatar" style="--av:#2dd4bf">M</span><div><b>SWAP PLATES</b><span>Mira · Driver</span></div><em class="ready">READY</em></div>
-    <div class="crew-member"><span class="crew-avatar" style="--av:#f59e0b">L</span><div><b>QUICK FIX</b><span>Lio · Mechanic</span></div><em class="ready">READY</em></div>
-    <div class="crew-member"><span class="crew-avatar" style="--av:#a78bfa">K</span><div><b>EYES OUT</b><span>Kiki · Lookout</span></div><em class="ready">READY</em></div>
+    <div class="crew-member"><canvas class="crew-avatar" id="crew-portrait-rosa" width="36" height="36"></canvas><div><b>SWAP PLATES</b><span>Rosa · Driver</span></div><em class="ready">READY</em></div>
+    <div class="crew-member"><canvas class="crew-avatar" id="crew-portrait-dez" width="36" height="36"></canvas><div><b>QUICK FIX</b><span>Dez · Mechanic</span></div><em class="ready">READY</em></div>
+    <div class="crew-member"><canvas class="crew-avatar" id="crew-portrait-pip" width="36" height="36"></canvas><div><b>EYES OUT</b><span>Pip · Lookout</span></div><em class="ready">READY</em></div>
+  </section>
+
+  <!-- top-center: race HUD (hidden unless racing) -->
+  <section id="race-hud" class="panel" hidden>
+    <div class="race-head"><span id="race-name">STRAND SPRINT</span><b id="race-time">0:00.0</b></div>
+    <div class="race-row"><span id="race-checkpoint">CP 1/5</span><b id="race-position">4TH OF 4</b><span id="race-gold">GOLD 1:58</span></div>
   </section>
 
   <!-- bottom-left: location + minimap + vitals -->
   <section id="map-block">
-    <div id="location" class="panel"><b>SOLMAR STRAND</b><span>Strand Boulevard</span><div class="standing"><i style="width:58%"></i></div><span class="standing-text">NEUTRAL · 58</span></div>
+    <div id="location" class="panel"><b id="location-name">SOLMAR STRAND</b><span id="location-tagline">The beach at the end of the chase</span><div class="standing"><i id="location-standing-fill" style="width:64%"></i></div><span class="standing-text" id="location-standing-text">NEUTRAL · 64</span></div>
     <canvas id="minimap" width="220" height="220"></canvas>
     <div id="vitals" class="panel">
       <div class="vital"><span>HEALTH</span><div class="vital-bar"><i class="health" id="health-fill"></i></div><b id="health-num">72</b></div>
@@ -66,44 +73,122 @@
     </div>
   </section>
 
-  <!-- bottom-center: dialogue -->
+  <!-- bottom-center: dialogue (painted portrait) -->
   <section id="dialogue" class="panel">
-    <span class="dialogue-avatar" id="dialogue-avatar">J</span>
-    <div><b id="dialogue-name">JUNO</b><p id="dialogue-text">He's making for Solmar Pier! Ram the Regent before it reaches the water!</p></div>
+    <canvas class="dialogue-avatar" id="dialogue-portrait" width="48" height="48"></canvas>
+    <div><b id="dialogue-name">VERA</b><p id="dialogue-text">He's making for Solmar Pier! Ram the Vanguard before it reaches the water!</p></div>
   </section>
 
-  <!-- bottom-right: speedometer -->
+  <!-- bottom-right: speedometer (KM/H) -->
   <section id="speedo" class="panel">
-    <div class="speed-row"><b id="speed">104</b><span>MPH</span></div>
+    <div class="speed-row"><b id="speed">167</b><span>KM/H</span></div>
     <div id="vehicle-name">VORTEX GT</div>
     <div class="condition"><span id="condition-text">62% DENTED</span><div class="condition-bar"><i id="condition-fill"></i></div></div>
     <div id="radio">♪ SOLMAR FM 101.2</div>
   </section>
 
+  <!-- contextual tip line (night shot: hiding tip) -->
+  <div id="tip-line" hidden>TIP: DUCK BY A STALL TO HIDE</div>
   <div id="banner"></div>
-  <div id="hint">WASD drive · SPACE brake · F enter/exit car · 1–5 weapons · M/L/K crew · P pause</div>
+  <div id="hint">WASD drive · SPACE brake · F enter/exit car · 1–5 weapons · M/L/K crew · R race · P pause</div>
+</div>
+
+<!-- mission-intro dialogue screen (free play, on mission start) -->
+<div id="dialogue-screen" hidden>
+  <div class="dialogue-card">
+    <h2 id="dialogue-screen-title">MISSION 6 · ACT II — SINK THE VANGUARD</h2>
+    <div class="dialogue-screen-body">
+      <canvas id="dialogue-screen-portrait" width="180" height="180"></canvas>
+      <div>
+        <b id="dialogue-screen-speaker">VERA</b>
+        <p id="dialogue-screen-lines"></p>
+      </div>
+    </div>
+    <p class="dialogue-screen-foot">Click anywhere to start the mission</p>
+  </div>
 </div>
 
 <!-- start screen -->
 <div id="title-screen">
   <div class="title-card">
     <h1>SOLMAR CITY <span>3D</span></h1>
-    <p class="tagline">An open-world crime game — ten jobs, one city, no way out but through.</p>
-    <p class="title-state">Continue — Mission 6 · $18,450 · FIXER · 62% through the story</p>
-    <button id="play-btn">▶ &nbsp;CONTINUE</button>
-    <p class="title-foot">WASD drive &amp; walk · Mouse aim · F steal a car · Wanted stars bring the heat</p>
+    <p class="tagline">An open-world crime game — ten jobs, four races, twenty doubloons, one city.</p>
+    <ul id="title-slots"></ul>
+    <div class="title-menu">
+      <button id="play-btn">▶ &nbsp;CONTINUE</button>
+      <button id="new-game-btn" class="title-btn">NEW GAME</button>
+      <button id="load-btn" class="title-btn">LOAD GAME</button>
+      <button id="settings-btn" class="title-btn">SETTINGS</button>
+    </div>
+    <p class="title-foot">WASD drive &amp; walk · F steal a car · R street race · P pause menu · Wanted stars bring the heat</p>
   </div>
 </div>
 
+<!-- tabbed pause menu: MAP / STORY / STATS / CREW / SAVE -->
 <div id="pause-menu" hidden>
-  <div class="pause-card">
-    <h2>PAUSED</h2>
-    <ul>
-      <li>Resume — P</li>
-      <li>Save game — progress autosaves at safehouses</li>
-      <li>Restart mission</li>
-      <li>Quit to title</li>
-    </ul>
+  <div class="menu-card">
+    <div class="menu-tabs">
+      <button class="menu-tab" data-tab="MAP">MAP</button>
+      <button class="menu-tab" data-tab="STORY">STORY</button>
+      <button class="menu-tab active" data-tab="STATS">STATS</button>
+      <button class="menu-tab" data-tab="CREW">CREW</button>
+      <button class="menu-tab" data-tab="SAVE">SAVE</button>
+      <span class="menu-clock" id="menu-clock">16:42 · DAY</span>
+    </div>
+
+    <div class="menu-panel" data-panel="MAP">
+      <div class="map-columns">
+        <div>
+          <canvas id="map-canvas" width="460" height="380"></canvas>
+          <div id="map-legend" class="map-legend"></div>
+        </div>
+        <div class="map-side">
+          <h3>CURRENT MISSION</h3>
+          <div id="map-mission" class="map-mission"></div>
+          <h3>DISTRICT STANDING</h3>
+          <ul id="map-standing" class="map-standing"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="menu-panel" data-panel="STORY">
+      <h3>STORY — TEN JOBS, THREE ACTS</h3>
+      <ul id="story-list" class="story-list"></ul>
+    </div>
+
+    <div class="menu-panel active" data-panel="STATS">
+      <div class="stats-columns">
+        <div class="stats-left">
+          <canvas id="stats-donut" width="150" height="150"></canvas>
+          <div id="stats-percent" class="stats-percent">42.7% COMPLETE</div>
+          <div id="stats-rank" class="stats-rank">RANK — OPERATOR</div>
+          <div id="stats-rank-next" class="stats-rank-next"></div>
+          <h3>MISSION MEDALS</h3>
+          <div id="stats-medals" class="stats-medals"></div>
+        </div>
+        <div class="stats-mid">
+          <h3>COMPLETION CHECKLIST</h3>
+          <ul id="stats-checklist" class="stats-checklist"></ul>
+        </div>
+        <div class="stats-right">
+          <h3>CAREER</h3>
+          <ul id="stats-career" class="stats-career"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="menu-panel" data-panel="CREW">
+      <h3>CREW — THREE HANDS, ONE CITY</h3>
+      <ul id="crew-list" class="crew-list"></ul>
+    </div>
+
+    <div class="menu-panel" data-panel="SAVE">
+      <h3>SAVE SLOTS</h3>
+      <ul id="save-list" class="save-list"></ul>
+      <p class="save-foot">Safehouses autosave to the active slot. Progress, garage, ratings and career stats are saved.</p>
+    </div>
+
+    <p class="menu-foot">P / Esc resume · Click a tab to switch · Progress saves at safehouses</p>
   </div>
 </div>
 

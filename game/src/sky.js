@@ -5,12 +5,15 @@ import { makeCloudTexture, makeGlowTexture } from './textures.js';
 
 const glowTexture = makeGlowTexture();
 
-export function buildSky(rng, goldenHour = false) {
+export function buildSky(rng, goldenHour = false, night = false) {
   const sky = new THREE.Group();
 
   // Gradient dome: deep blue overhead, warm haze at the horizon.
-  const topColor = goldenHour ? new THREE.Color(0x3b5bdb) : new THREE.Color(0x2f7fd0);
-  const horizonColor = goldenHour ? new THREE.Color(0xffb26b) : new THREE.Color(0xcfe9f7);
+  // Night: a dark dome with a pale moon and stars instead of the sun.
+  const topColor = night ? new THREE.Color(0x0a1230)
+    : goldenHour ? new THREE.Color(0x3b5bdb) : new THREE.Color(0x2f7fd0);
+  const horizonColor = night ? new THREE.Color(0x1c2b52)
+    : goldenHour ? new THREE.Color(0xffb26b) : new THREE.Color(0xcfe9f7);
   const domeGeometry = new THREE.SphereGeometry(420, 24, 14);
   const positions = domeGeometry.attributes.position;
   const colors = new Float32Array(positions.count * 3);
@@ -27,15 +30,28 @@ export function buildSky(rng, goldenHour = false) {
   dome.renderOrder = -10;
   sky.add(dome);
 
-  // Sun disc + glow, low in the west for golden hour.
-  const sunPosition = goldenHour ? new THREE.Vector3(-180, 42, -260) : new THREE.Vector3(-120, 150, -220);
+  // Sun disc + glow, low in the west for golden hour. At night it is a
+  // pale moon, high and small, with a field of stars around it.
+  const sunPosition = night ? new THREE.Vector3(120, 210, -260)
+    : goldenHour ? new THREE.Vector3(-180, 42, -260) : new THREE.Vector3(-120, 150, -220);
   const sun = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: glowTexture, color: goldenHour ? 0xffd27a : 0xfff7cc, transparent: true,
+    map: glowTexture, color: night ? 0xdbeafe : goldenHour ? 0xffd27a : 0xfff7cc, transparent: true,
     opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
   }));
   sun.position.copy(sunPosition);
-  sun.scale.set(90, 90, 1);
+  sun.scale.set(night ? 42 : 90, night ? 42 : 90, 1);
   sky.add(sun);
+  if (night) {
+    for (let i = 0; i < 90; i++) {
+      const star = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: glowTexture, color: 0xffffff, transparent: true,
+        opacity: rng.range(0.3, 0.9), depthWrite: false, fog: false,
+      }));
+      star.position.set(rng.range(-380, 380), rng.range(60, 340), rng.range(-380, 60));
+      star.scale.set(rng.range(1.5, 3.5), rng.range(1.5, 3.5), 1);
+      sky.add(star);
+    }
+  }
 
   // Puffy clouds, scattered high.
   const cloudTexture = makeCloudTexture(rng);

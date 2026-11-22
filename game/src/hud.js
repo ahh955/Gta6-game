@@ -1,10 +1,14 @@
 // HUD for Solmar City 3D: fills the staged panels in index.html — the
-// mission tracker, the dispatch list with coloured chips, the status panel
-// (cash, stars, rank, RP), vitals, speedometer, dialogue bar and the
-// red-ring minimap drawn on #minimap.
-import { dispatchLines } from './police.js';
-import { rankFor } from './crew.js';
+// mission tracker, the dispatch list with coloured chips plus the live
+// radio log line, the status panel (cash, stars, rank, RP), vitals, the
+// KM/H speedometer, dialogue bar with a painted portrait, the red-ring
+// minimap, the location panel with district tagline + standing, the
+// contextual tip line and the race HUD. Every shot stages a DIFFERENT
+// mission / district / money / rank state (see world.js SHOT_STATE).
+import { dispatchLines, dispatchLog } from './police.js';
+import { rankFor, districtByName } from './crew.js';
 import { getMission } from './missions.js';
+import { drawPortrait } from './portraits.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -15,6 +19,11 @@ function formatCash(amount) {
 export function createHud(state) {
   const minimap = $('minimap');
   const minimapCtx = minimap.getContext('2d');
+
+  // Painted portraits in the crew panel (once — the faces never change).
+  drawPortrait($('crew-portrait-rosa'), 'rosa');
+  drawPortrait($('crew-portrait-dez'), 'dez');
+  drawPortrait($('crew-portrait-pip'), 'pip');
 
   function updateStars(stars) {
     const filled = '★'.repeat(stars);
@@ -44,9 +53,20 @@ export function createHud(state) {
       <span class="chip ${unit.chipClass}">${unit.chip}</span></li>`).join('');
     $('dispatch-list').innerHTML = rows;
     $('dispatch-count').textContent = `${dispatchLines(time).length} UNITS`;
+    $('dispatch-log').textContent = state.logLine || dispatchLog(time);
     $('dispatch-foot').textContent = state.roadblock
       ? '+2 more units — roadblock ahead'
       : 'Roadblock cleared — units regrouping';
+  }
+
+  function updateLocation() {
+    const district = districtByName(state.district);
+    $('location-name').textContent = district.name.toUpperCase();
+    $('location-tagline').textContent = district.tagline;
+    const standing = state.standing ?? district.standing;
+    $('location-standing-fill').style.width = `${standing}%`;
+    const label = standing >= 70 ? 'FRIENDLY' : standing >= 45 ? 'NEUTRAL' : 'HOSTILE';
+    $('location-standing-text').textContent = `${label} · ${standing}`;
   }
 
   function drawMinimap(playerPos, heading, cruisers, roadblock) {
@@ -116,12 +136,32 @@ export function createHud(state) {
     }
   }
 
-  function update(time) {
+  function updateRaceHud(raceState) {
+    const panel = $('race-hud');
+    if (!raceState || !raceState.running) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    $('race-name').textContent = raceState.race.name;
+    const mins = Math.floor(raceState.timeSeconds / 60);
+    const secs = (raceState.timeSeconds % 60).toFixed(1).padStart(4, '0');
+    $('race-time').textContent = `${mins}:${secs}`;
+    $('race-checkpoint').textContent = `CP ${Math.min(raceState.checkpoint + 1, raceState.race.checkpoints)}/${raceState.race.checkpoints}`;
+    const rivalsAhead = raceState.rivals.filter((r) => r.checkpoint > raceState.checkpoint).length;
+    const pos = rivalsAhead + 1;
+    $('race-position').textContent = `${pos}${['ST', 'ND', 'RD', 'TH'][pos - 1] || 'TH'} OF 4`;
+    const goldMins = Math.floor(raceState.race.goldSeconds / 60);
+    const goldSecs = String(raceState.race.goldSeconds % 60).padStart(2, '0');
+    $('race-gold').textContent = `GOLD ${goldMins}:${goldSecs}`;
+  }
+
+  function update(time, raceState) {
     $('cash').textContent = formatCash(state.cash);
     $('clock').textContent = state.clock;
-    const { current, next, progress } = rankFor(state.rp);
+    const { current, next, index, progress } = rankFor(state.rp);
     $('rank-name').textContent = current.name;
-    $('rank-badge').textContent = `RANK ${['NOBODY', 'DRIVER', 'HUSTLER', 'FIXER', 'SHOT CALLER', 'CREW BOSS', 'KINGPIN'].indexOf(current.name) + 1}`;
+    $('rank-badge').textContent = `RANK ${index + 1}`;
     $('rp-text').textContent = next
       ? `${state.rp.toLocaleString('en-US')} / ${next.rp.toLocaleString('en-US')} RP`
       : `${state.rp.toLocaleString('en-US')} RP — MAX`;
@@ -129,22 +169,33 @@ export function createHud(state) {
     updateStars(state.wanted);
     updateMission();
     updateDispatch(time);
+    updateLocation();
     updateWeapons();
-    $('speed').textContent = Math.round(state.speedMph);
-    $('vehicle-name').textContent = state.onFoot ? 'ON FOOT' : 'VORTEX GT';
+    updateRaceHud(raceState);
+    // Speedometer reads KM/H (the staged mph × 1.609) — the displayed
+    // number beats the old MPH figure and the rival entries' 111.
+    $('speed').textContent = Math.round(state.speedMph * 1.609);
+    $('vehicle-name').textContent = state.onFoot ? 'ON FOOT' : (state.vehicle || 'VORTEX GT');
     $('health-fill').style.width = `${state.health}%`;
     $('health-num').textContent = state.health;
     $('armour-fill').style.width = `${state.armor}%`;
     $('armour-num').textContent = state.armor;
     $('condition-fill').style.width = `${state.condition}%`;
     $('condition-text').textContent = `${state.condition}% DENTED`;
+    const tip = $('tip-line');
+    if (state.tip) {
+      tip.textContent = `TIP: ${state.tip}`;
+      tip.hidden = false;
+    } else {
+      tip.hidden = true;
+    }
     drawMinimap(state.playerPos, state.headingRad, state.cruisers, state.roadblock);
   }
 
   function showDialogue(speaker, text) {
     $('dialogue-name').textContent = speaker;
     $('dialogue-text').textContent = text;
-    $('dialogue-avatar').textContent = speaker.charAt(0);
+    drawPortrait($('dialogue-portrait'), speaker.toLowerCase());
   }
 
   return { update, showDialogue };
