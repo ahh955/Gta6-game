@@ -1,4 +1,4 @@
-# Solmar City 3D — Make GTA 6 (gta6-01, round 8)
+# Solmar City 3D — Make GTA 6 (gta6-01, round 9)
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
@@ -56,10 +56,15 @@ every texture is drawn procedurally in code.
 
 The four staged shots (`shots.json`, all `?seed=1` for a fixed city):
 
-1. `1-chase.jpg` — four-star chase, 104 MPH, cruisers flanking, CONDOR-1 overhead
-2. `2-beach.jpg` — beach drive with the ocean on the right
-3. `3-shootout.jpg` — on foot by the car, mid-mission
+1. `1-chase.jpg` — four-star chase, 104 MPH, low close camera, four cruisers with flashing light bars, CONDOR-1 large overhead with a white spotlight cone on the car, roadblock ahead
+2. `2-beach.jpg` — beach drive, hero car in frame, ocean on the right, Ferris wheel ahead
+3. `3-shootout.jpg` — on foot in the open, SMG out with a muzzle flash, hit spark on the target car
 4. `4-golden-hour.jpg` — golden-hour vista down the whole boulevard
+
+Round 9 restaged the shots against the top-10 covers: closer cameras,
+a bigger helicopter with a brighter cone, brighter cruiser light bars,
+setback rooflines and glass storefronts on the towers, a lighter road,
+and more traffic and pedestrians in frame.
 
 ## Layout
 

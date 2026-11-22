@@ -10,6 +10,13 @@ const glowTexture = makeGlowTexture();
 function paintMaterial(color) {
   return new THREE.MeshStandardMaterial({ color, metalness: 0.85, roughness: 0.28 });
 }
+// Satin paint for the police cruisers: round 8 used the metallic paint for
+// the white body, but metalness without an environment map reflects black,
+// so the "white" cruisers rendered as dark grey sedans. Low metalness lets
+// the diffuse light do the work and the white actually reads white.
+function satinMaterial(color) {
+  return new THREE.MeshStandardMaterial({ color, metalness: 0.25, roughness: 0.45 });
+}
 function glassMaterial() {
   return new THREE.MeshStandardMaterial({ color: 0x101c2c, metalness: 0.9, roughness: 0.08 });
 }
@@ -157,8 +164,8 @@ export function buildSportsCar(color = 0xff7a1a, plate = 'SLMR 06') {
 // Police interceptor: white sedan, black doors, roof light bar, push bar.
 export function buildCruiser(unit = '7') {
   const car = new THREE.Group();
-  const white = paintMaterial(0xf1f5f9);
-  const black = paintMaterial(0x0f172a);
+  const white = satinMaterial(0xf1f5f9);
+  const black = satinMaterial(0x0f172a);
 
   const body = extrudeProfile([
     [-2.3, 0.3], [-2.3, 0.78], [-1.7, 0.86], [-0.9, 0.9],
@@ -194,19 +201,21 @@ export function buildCruiser(unit = '7') {
   }
 
   // Roof light bar: red left, blue right, flashing via update.
-  const barBase = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 1.2), darkMaterial());
+  // Round 9: bigger lenses and much stronger glow — in round 8 the bars
+  // read as tiny dots; the top entries' cruisers flash visibly.
+  const barBase = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 1.3), darkMaterial());
   barBase.position.set(-0.2, 1.46, 0);
   car.add(barBase);
-  const redMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff2222, emissiveIntensity: 4 });
-  const blueMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, emissive: 0x2266ff, emissiveIntensity: 4 });
-  const redLens = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.55), redMat);
-  redLens.position.set(-0.2, 1.56, 0.3);
+  const redMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff2222, emissiveIntensity: 7 });
+  const blueMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, emissive: 0x2266ff, emissiveIntensity: 7 });
+  const redLens = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.6), redMat);
+  redLens.position.set(-0.2, 1.57, 0.32);
   car.add(redLens);
-  const blueLens = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.55), blueMat);
-  blueLens.position.set(-0.2, 1.56, -0.3);
+  const blueLens = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.6), blueMat);
+  blueLens.position.set(-0.2, 1.57, -0.32);
   car.add(blueLens);
-  const redGlow = addGlowSprite(car, -0.2, 1.7, 0.3, 0xff2222, 1.6);
-  const blueGlow = addGlowSprite(car, -0.2, 1.7, -0.3, 0x2266ff, 1.6);
+  const redGlow = addGlowSprite(car, -0.2, 1.75, 0.32, 0xff2222, 2.6);
+  const blueGlow = addGlowSprite(car, -0.2, 1.75, -0.32, 0x2266ff, 2.6);
 
   // Push bar + headlights + taillights.
   const pushMat = darkMaterial(0x22262b);
@@ -307,8 +316,8 @@ export function updateCruiserFlash(cruiser, time) {
   const flash = cruiser.userData.flash;
   if (!flash) return;
   const on = Math.sin(time * 6 + flash.phase) > 0;
-  flash.redMat.emissiveIntensity = on ? 4 : 0.8;
-  flash.blueMat.emissiveIntensity = on ? 0.8 : 4;
+  flash.redMat.emissiveIntensity = on ? 7 : 1.2;
+  flash.blueMat.emissiveIntensity = on ? 1.2 : 7;
   flash.redGlow.material.opacity = on ? 0.95 : 0.3;
   flash.blueGlow.material.opacity = on ? 0.3 : 0.95;
 }

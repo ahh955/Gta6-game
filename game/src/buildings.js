@@ -41,6 +41,26 @@ export function buildBuilding(width, depth, height, rng, signChance = 0.55) {
     unit.position.set(rng.range(-width / 2 + 1, width / 2 - 1), height + 0.7, rng.range(-depth / 2 + 1, depth / 2 - 1));
     group.add(unit);
   }
+  // Round 9: setback upper tower on tall buildings — the flat slab roofline
+  // was the single most "boxy" read in the round-8 screenshots.
+  if (height > 18 && rng.chance(0.7)) {
+    const topH = height * rng.range(0.16, 0.26);
+    const topW = width * rng.range(0.45, 0.65);
+    const topD = depth * rng.range(0.5, 0.7);
+    const topFacade = makeFacadeTexture(baseColor, Math.max(2, Math.round(topH / 3.2)), 0.3, rng);
+    const topBox = new THREE.Mesh(
+      new THREE.BoxGeometry(topW, topH, topD),
+      new THREE.MeshStandardMaterial({ map: topFacade, roughness: 0.85 }),
+    );
+    topBox.position.set(rng.range(-width / 6, width / 6), height + 0.4 + topH / 2, rng.range(-depth / 8, depth / 8));
+    group.add(topBox);
+    const topRoof = new THREE.Mesh(
+      new THREE.BoxGeometry(topW + 0.3, 0.3, topD + 0.3),
+      new THREE.MeshStandardMaterial({ color: 0x8a8f98, roughness: 0.9 }),
+    );
+    topRoof.position.set(topBox.position.x, height + 0.4 + topH + 0.15, topBox.position.z);
+    group.add(topRoof);
+  }
   if (rng.chance(0.5)) {
     const antenna = new THREE.Mesh(
       new THREE.CylinderGeometry(0.04, 0.04, rng.range(2, 4), 6),
@@ -51,6 +71,15 @@ export function buildBuilding(width, depth, height, rng, signChance = 0.55) {
   }
 
   // Street-level shopfront: awning + big sign, facing the road (+z local).
+  // Round 9: varied awning colours (round 8 was red/white everywhere) and
+  // a dark glass storefront band so the ground floor reads as shops.
+  const glassBand = new THREE.Mesh(
+    new THREE.BoxGeometry(width * 0.92, 2.4, 0.12),
+    new THREE.MeshStandardMaterial({ color: 0x16283a, metalness: 0.85, roughness: 0.12 }),
+  );
+  glassBand.position.set(0, 1.35, depth / 2 + 0.06);
+  group.add(glassBand);
+  const AWNING_COLORS = [['#e11d48', '#ffffff'], ['#0ea5e9', '#ffffff'], ['#f59e0b', '#1f2937'], ['#22c55e', '#ffffff']];
   if (rng.next() < signChance) {
     const [text, bg, fg, sub] = rng.pick(SIGN_COLORS);
     const sign = new THREE.Mesh(
@@ -63,9 +92,10 @@ export function buildBuilding(width, depth, height, rng, signChance = 0.55) {
     );
     sign.position.set(0, 4.6, depth / 2 + 0.06);
     group.add(sign);
+    const [awA, awB] = rng.pick(AWNING_COLORS);
     const awning = new THREE.Mesh(
       new THREE.PlaneGeometry(width * 0.8, 1.6),
-      new THREE.MeshStandardMaterial({ map: makeAwningTexture('#e11d48', '#ffffff'), roughness: 0.8, side: THREE.DoubleSide }),
+      new THREE.MeshStandardMaterial({ map: makeAwningTexture(awA, awB), roughness: 0.8, side: THREE.DoubleSide }),
     );
     awning.position.set(0, 3.1, depth / 2 + 0.85);
     awning.rotation.x = -0.5;

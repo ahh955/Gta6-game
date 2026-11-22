@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { makeRng } from './rng.js';
 import { buildSportsCar, buildCruiser, buildTrafficCar, buildScooter, updateCruiserFlash } from './vehicles.js';
-import { buildHelicopter, updateHelicopter } from './heli.js';
+import { buildHelicopter, updateHelicopter, aimSpotlight } from './heli.js';
 import { buildPalm } from './palms.js';
 import { buildBuilding } from './buildings.js';
 import { buildSky, buildBeach, buildFerrisWheel, updateFerrisWheel } from './sky.js';
@@ -14,18 +14,21 @@ import { makeRoadTexture, makeSidewalkTexture, makeGlowTexture } from './texture
 import { frameShot } from './player.js';
 
 // Shot poses: [camera position, look target]. Tuned by viewing the renders.
+// Round 9: the cover camera moved lower and closer (the car fills ~45% of
+// the frame now), and shot 2 reframed so the hero car is fully in frame.
 const SHOT_POSES = {
-  1: { camera: [4, 1.9, 7.5], target: [1, 1.0, -8], goldenHour: false },
-  2: { camera: [-10, 2.4, 8], target: [2, 1, -6], goldenHour: false },
-  3: { camera: [5.5, 1.7, 6], target: [-2, 1.2, -5], goldenHour: false },
+  1: { camera: [3.3, 1.55, 5.6], target: [1.2, 1.0, -9], goldenHour: false },
+  2: { camera: [-6.5, 2.0, 6.5], target: [1, 1, -8], goldenHour: false },
+  3: { camera: [-4.5, 2.0, 3.5], target: [-1, 1.1, -6], goldenHour: false },
   4: { camera: [17, 6.5, 20], target: [0, 2, -60], goldenHour: true },
 };
 
-// Helicopter position per shot: high and ahead, in frame, cone on the road.
+// Helicopter position per shot: closer and lower than round 8, so the heli
+// reads LARGE in the upper frame with its spotlight cone on the car.
 const HELI_POSITIONS = {
-  1: [12, 12.6, -28],
-  2: [14, 12.6, -30],
-  3: [2, 11, -32],
+  1: [8.5, 9.2, -19],
+  2: [10, 9.5, -22],
+  3: [4, 9.5, -24],
   4: [18, 12.6, -35],
 };
 
@@ -44,7 +47,7 @@ export function buildWorld(scene, seed, shotId) {
 
   // --- Lights ---
   const sunColor = goldenHour ? 0xffc07a : 0xfff2d9;
-  const sun = new THREE.DirectionalLight(sunColor, goldenHour ? 2.4 : 2.8);
+  const sun = new THREE.DirectionalLight(sunColor, goldenHour ? 2.4 : 3.0);
   sun.position.set(goldenHour ? -60 : -80, goldenHour ? 38 : 90, -120);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -52,7 +55,12 @@ export function buildWorld(scene, seed, shotId) {
   sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
   sun.shadow.camera.far = 400;
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x8a7a5a, goldenHour ? 0.9 : 1.25));
+  scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x8a7a5a, goldenHour ? 0.9 : 1.5));
+  // Rear fill: lifts the shadow side of the cars (the camera sees their
+  // backs in the chase shots, which read near-black without it).
+  const fill = new THREE.DirectionalLight(0xd6e9ff, 0.7);
+  fill.position.set(30, 40, 90);
+  scene.add(fill);
   scene.fog = new THREE.Fog(goldenHour ? 0xf7c98a : 0xcfe9f7, 140, 380);
 
   // --- Sky, beach, Ferris wheel ---
@@ -145,9 +153,11 @@ export function buildWorld(scene, seed, shotId) {
 
   // --- Cruisers ---
   const cruisers = [];
+  // Four pursuit units bracketing the player car, all in the cover frame:
+  // two ahead-left/right, one close behind-right, one alongside.
   const cruiserSpots = shotId === 4
     ? [[-3, 10, Math.PI], [5.5, 16, Math.PI]]
-    : [[4.5, -6, Math.PI - 0.12], [-4.5, -4, Math.PI + 0.15], [-2, -18, 0.1]];
+    : [[4.5, -6, Math.PI - 0.12], [-4.5, -4, Math.PI + 0.15], [-2, -18, 0.1], [5, -14, Math.PI + 0.08]];
   for (const [x, cz, rot] of cruiserSpots) {
     const cruiser = buildCruiser(String(cruisers.length + 1));
     cruiser.position.set(x, 0, cz);
@@ -156,11 +166,12 @@ export function buildWorld(scene, seed, shotId) {
     scene.add(cruiser);
     cruisers.push(cruiser);
   }
-  // Roadblock ahead: two cruisers angled across the road at z = -45.
+  // Roadblock ahead: two cruisers angled across the road at z = -34
+  // (closer than round 8's -45, so it actually reads in the cover shot).
   const roadblock = [];
   for (const [x, rot] of [[-3.5, Math.PI / 2 + 0.35], [3.5, -Math.PI / 2 - 0.3]]) {
     const cruiser = buildCruiser('RB');
-    cruiser.position.set(x, 0, -45);
+    cruiser.position.set(x, 0, -34);
     cruiser.rotation.y = rot;
     cruiser.traverse((child) => { if (child.isMesh) child.castShadow = true; });
     scene.add(cruiser);
@@ -182,6 +193,9 @@ export function buildWorld(scene, seed, shotId) {
     [-4.5, -12, Math.PI, 22], [4.8, -38, Math.PI, 18], [-4.8, -58, Math.PI, 25],
     [-2, -75, Math.PI, 20], [5, -95, Math.PI, 24], [-5, -120, Math.PI, 19],
     [4.5, 24, 0, 21], [-4.5, 32, 0, 23], [5, -150, Math.PI, 22], [-4, -170, Math.PI, 20],
+    // Round 9: extra near-band traffic so the cover shot's road reads busy.
+    [-4.6, -10, Math.PI, 22], [4.9, -24, Math.PI, 20], [-4.9, -30, Math.PI, 24],
+    [0.5, -44, Math.PI, 21],
   ];
   for (const [x, tz, rot, speed] of trafficSpots) {
     const car = buildTrafficCar(rng.pick(trafficColors));
@@ -219,6 +233,19 @@ export function buildWorld(scene, seed, shotId) {
     scene.add(person);
     pedestrians.push(person);
   }
+  // Round 9: guaranteed near-camera pedestrians so the cover shot's
+  // sidewalks read lived-in instead of empty.
+  const nearPeds = [[-9, -6], [9, -12], [-9, -20], [9, -26], [-9, 4], [9, -2]];
+  for (const [x, z] of nearPeds) {
+    const person = buildPedestrian(rng);
+    person.position.set(x, 0.06, z);
+    person.rotation.y = rng.chance(0.5) ? 0 : Math.PI;
+    person.userData.sidewalk = x;
+    person.userData.direction = rng.chance(0.5) ? 1 : -1;
+    person.traverse((child) => { if (child.isMesh) child.castShadow = true; });
+    scene.add(person);
+    pedestrians.push(person);
+  }
   for (let i = 0; i < 8; i++) {
     const person = buildPedestrian(rng);
     person.position.set(rng.range(14, 44), 0, rng.range(-150, 10));
@@ -229,19 +256,26 @@ export function buildWorld(scene, seed, shotId) {
   }
 
   // --- Helicopter: up-right of the player car, cone on the road beside it ---
+  // Round 9: scaled up 25% so it reads LARGE, not a distant speck.
   const heli = buildHelicopter();
+  heli.scale.setScalar(1.25);
   const heliPos = HELI_POSITIONS[shotId] || HELI_POSITIONS[1];
   heli.position.set(heliPos[0], heliPos[1], heliPos[2]);
   heli.rotation.y = Math.PI * 0.85;
   heli.rotation.z = -0.12; // slight lean toward the car, cone tips toward it
+  // Stretch the spotlight cone to the ground (local units: altitude / scale).
+  aimSpotlight(heli, heliPos[1] / 1.25);
   scene.add(heli);
 
   // --- On-foot hero for shot 3: gun out, muzzle flash, facing the cruiser ---
+  // Round 9: the hero stood hidden behind the car in round 8. Now he stands
+  // in the open on the left lane, fully visible, with a bigger flash and a
+  // hit-spark on the target car ahead.
   let hero = null;
   if (shotId === 3) {
     hero = buildPedestrian(makeRng(99));
-    hero.position.set(3.6, 0, -2.5);
-    hero.rotation.y = Math.PI * 0.95;
+    hero.position.set(-3.0, 0, -3.2);
+    hero.rotation.y = Math.PI * 0.72;
     hero.scale.setScalar(1.05);
     // SMG in hand + muzzle flash.
     const gun = new THREE.Mesh(
@@ -250,16 +284,26 @@ export function buildWorld(scene, seed, shotId) {
     );
     gun.position.set(0.35, 1.28, 0.15);
     hero.add(gun);
+    scene.add(hero);
+    // Muzzle flash as a WORLD-space sprite beside the hero on the camera
+    // side: attached to the hero it hid behind his torso from the shot
+    // camera (round 9 second pass). Same for the hit spark on the cruiser.
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({
       map: makeGlowTexture(), color: 0xffdd55, transparent: true, opacity: 0.95,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
-    flash.position.set(0.62, 1.28, 0.15);
-    flash.scale.set(0.9, 0.9, 1);
-    hero.add(flash);
-    scene.add(hero);
-    playerCar.position.set(1.2, 0, 1.5);
-    playerCar.rotation.y = Math.PI + 0.3;
+    flash.position.set(-3.9, 1.4, -3.6);
+    flash.scale.set(2.0, 2.0, 1);
+    scene.add(flash);
+    const spark = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeGlowTexture(), color: 0xffcc44, transparent: true, opacity: 0.9,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    spark.position.set(-4.5, 1.3, -4.2);
+    spark.scale.set(2.4, 2.4, 1);
+    scene.add(spark);
+    playerCar.position.set(2.5, 0, 2.5);
+    playerCar.rotation.y = Math.PI + 0.5;
   }
 
   // --- Camera for the shot ---

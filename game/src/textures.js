@@ -25,14 +25,23 @@ export function makeFacadeTexture(baseColor, floors, litRatio, rng) {
     const cellW = w / cols, cellH = h / rows;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const lit = rng.next() < litRatio;
-        ctx.fillStyle = lit ? '#ffd166' : '#1d2b3a';
+        // Round 9: three window states instead of two — warm lit, cool
+        // blue glass, dark — so the facade reads varied, not a yellow grid.
+        const roll = rng.next();
+        const state = roll < litRatio ? 'lit' : (roll < litRatio + 0.25 ? 'blue' : 'dark');
+        ctx.fillStyle = state === 'lit' ? '#ffd166' : (state === 'blue' ? '#2b4a63' : '#1d2b3a');
         ctx.fillRect(c * cellW + 5, r * cellH + 6, cellW - 10, cellH - 12);
-        if (lit) {
+        if (state === 'lit') {
           ctx.fillStyle = 'rgba(255,255,255,0.35)';
           ctx.fillRect(c * cellW + 5, r * cellH + 6, cellW - 10, 3);
+        } else if (state === 'blue') {
+          ctx.fillStyle = 'rgba(255,255,255,0.22)';
+          ctx.fillRect(c * cellW + 5, r * cellH + 6, cellW - 10, 4);
         }
       }
+      // Floor separator line: breaks the flat grid into readable storeys.
+      ctx.fillStyle = 'rgba(0,0,0,0.14)';
+      ctx.fillRect(0, r * cellH, w, 2);
     }
     // ground-floor shopfront band
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, h - 26, w, 26);
@@ -69,7 +78,9 @@ export function makeAwningTexture(colorA, colorB) {
 // Asphalt tile: double yellow centre line, white dashes, edge lines.
 export function makeRoadTexture() {
   const texture = canvasTexture(256, 256, (ctx, w, h) => {
-    ctx.fillStyle = '#3d4148'; ctx.fillRect(0, 0, w, h);
+    // Round 9: lighter asphalt — the top entries' roads read light grey in
+    // the sun, and the dark round-8 road dragged the whole scene down.
+    ctx.fillStyle = '#4c5058'; ctx.fillRect(0, 0, w, h);
     // asphalt speckle
     for (let i = 0; i < 900; i++) {
       ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.12)';

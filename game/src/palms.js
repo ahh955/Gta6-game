@@ -4,11 +4,16 @@
 import * as THREE from 'three';
 
 const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8a6b4a, roughness: 0.9 });
+// Round 9: brighter green + a mild emissive lift — the round-8 fronds
+// rendered as near-black spikes on their shaded side; the top entries'
+// palms read vivid green from every angle.
 const frondMaterial = new THREE.MeshStandardMaterial({
-  color: 0x22a355, roughness: 0.75, side: THREE.DoubleSide,
+  color: 0x2bb866, roughness: 0.75, side: THREE.DoubleSide,
+  emissive: 0x1a5c2e, emissiveIntensity: 0.4,
 });
 const frondMaterialDark = new THREE.MeshStandardMaterial({
-  color: 0x1a7f43, roughness: 0.75, side: THREE.DoubleSide,
+  color: 0x22a355, roughness: 0.75, side: THREE.DoubleSide,
+  emissive: 0x14532d, emissiveIntensity: 0.35,
 });
 const coconutMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4f2a, roughness: 0.8 });
 

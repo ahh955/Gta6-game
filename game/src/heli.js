@@ -83,21 +83,24 @@ export function buildHelicopter() {
   const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.3, 12), dark);
   housing.position.set(0.9, -1.35, 0);
   heli.add(housing);
+  // Round 9: brighter and narrower — the round-8 cone (opacity 0.11) was
+  // invisible against a bright sky. The cone's length is set by
+  // aimSpotlight() once the caller knows the heli's altitude.
   const coneMat = new THREE.MeshBasicMaterial({
-    color: 0xfffbe8, transparent: true, opacity: 0.11,
+    color: 0xfffbe8, transparent: true, opacity: 0.2,
     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
   });
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.7, 11, 24, 1, true), coneMat);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.3, 11, 24, 1, true), coneMat);
   // Cone points down from the belly toward the ground.
   cone.position.set(0.9, -1.35 - 5.5, 0);
   cone.rotation.x = Math.PI;
   heli.add(cone);
-  // Bright pool where the beam lands (positioned by the caller on the road).
+  // Bright pool where the beam lands (positioned by aimSpotlight).
   const poolMat = new THREE.MeshBasicMaterial({
-    map: glowTexture, color: 0xfff6c0, transparent: true, opacity: 0.45,
+    map: glowTexture, color: 0xfff6c0, transparent: true, opacity: 0.6,
     blending: THREE.AdditiveBlending, depthWrite: false,
   });
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(1.8, 24), poolMat);
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), poolMat);
   pool.rotation.x = -Math.PI / 2;
   pool.position.set(0.9, -12.6, 0);
   heli.add(pool);
@@ -115,7 +118,22 @@ export function buildHelicopter() {
 
   heli.userData.rotor = rotor;
   heli.userData.tailRotor = tailRotor;
+  heli.userData.cone = cone;
+  heli.userData.pool = pool;
   return heli;
+}
+
+// Stretch the spotlight cone so its tip lands exactly on the ground, and
+// put the bright pool there too. groundDistance is the heli's altitude in
+// the heli's LOCAL units (divide by the group's scale when it is scaled).
+export function aimSpotlight(heli, groundDistance) {
+  const cone = heli.userData.cone;
+  const pool = heli.userData.pool;
+  if (!cone || !pool) return;
+  const length = Math.max(2, groundDistance - 1.35);
+  cone.scale.y = length / 11;
+  cone.position.y = -1.35 - length / 2;
+  pool.position.y = -groundDistance;
 }
 
 // Spin both rotors; the main rotor blurs at speed.
