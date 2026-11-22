@@ -201,21 +201,30 @@ export function buildCruiser(unit = '7') {
   }
 
   // Roof light bar: red left, blue right, flashing via update.
-  // Round 9: bigger lenses and much stronger glow — in round 8 the bars
-  // read as tiny dots; the top entries' cruisers flash visibly.
-  const barBase = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 1.3), darkMaterial());
-  barBase.position.set(-0.2, 1.46, 0);
+  // Round 11: the lenses are big solid emissive blocks, not just glow
+  // sprites — additive halos wash out against a bright sky, but a solid
+  // red/blue block on the roof reads in daylight at any distance. AND
+  // the bar runs along the car's LENGTH (local X), not its width: the
+  // car models face ±X in world space, so a bar across the width
+  // foreshortens to a blob from the chase camera — along the length it
+  // reads as a wide red/blue strip across the roof.
+  const barBase = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.4), darkMaterial());
+  barBase.position.set(-0.2, 1.5, 0);
   car.add(barBase);
-  const redMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff2222, emissiveIntensity: 7 });
-  const blueMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, emissive: 0x2266ff, emissiveIntensity: 7 });
-  const redLens = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.6), redMat);
-  redLens.position.set(-0.2, 1.57, 0.32);
+  const redMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff1111, emissiveIntensity: 2.5 });
+  const blueMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, emissive: 0x1144ff, emissiveIntensity: 2.5 });
+  const redLens = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.24, 0.4), redMat);
+  redLens.position.set(-0.54, 1.66, 0);
   car.add(redLens);
-  const blueLens = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.6), blueMat);
-  blueLens.position.set(-0.2, 1.57, -0.32);
+  const blueLens = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.24, 0.4), blueMat);
+  blueLens.position.set(0.14, 1.66, 0);
   car.add(blueLens);
-  const redGlow = addGlowSprite(car, -0.2, 1.75, 0.32, 0xff2222, 2.6);
-  const blueGlow = addGlowSprite(car, -0.2, 1.75, -0.32, 0x2266ff, 2.6);
+  // Round 11: the halos sit 0.45 m above the bar and wider still, so the
+  // flash clears the player car's roofline for the cruisers ahead — a
+  // halo is a soft radial glow, so the float is invisible. They sit over
+  // their lens (the bar runs along local X — see above).
+  const redGlow = addGlowSprite(car, -0.54, 2.2, 0, 0xff1111, 3.6);
+  const blueGlow = addGlowSprite(car, 0.14, 2.2, 0, 0x1144ff, 3.6);
 
   // Push bar + headlights + taillights.
   const pushMat = darkMaterial(0x22262b);
@@ -386,12 +395,22 @@ export function buildBike(color = 0x16a34a, withRider = true) {
 }
 
 // Alternate the cruiser light bars: red and blue swap every half second.
+// A cruiser with flash.frozen set (the staged chase/night shots) keeps
+// BOTH lenses at full brightness instead: a still taken mid-alternation
+// can catch one lens dark, and a dark bar reads as no police at all.
 export function updateCruiserFlash(cruiser, time) {
   const flash = cruiser.userData.flash;
   if (!flash) return;
+  if (flash.frozen) {
+    flash.redMat.emissiveIntensity = 2.5;
+    flash.blueMat.emissiveIntensity = 2.5;
+    flash.redGlow.material.opacity = 0.95;
+    flash.blueGlow.material.opacity = 0.95;
+    return;
+  }
   const on = Math.sin(time * 6 + flash.phase) > 0;
-  flash.redMat.emissiveIntensity = on ? 7 : 1.2;
-  flash.blueMat.emissiveIntensity = on ? 1.2 : 7;
+  flash.redMat.emissiveIntensity = on ? 2.5 : 0.5;
+  flash.blueMat.emissiveIntensity = on ? 0.5 : 2.5;
   flash.redGlow.material.opacity = on ? 0.95 : 0.3;
   flash.blueGlow.material.opacity = on ? 0.3 : 0.95;
 }

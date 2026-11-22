@@ -1,4 +1,4 @@
-# Solmar City 3D — Make GTA 6 (gta6-01, round 10)
+# Solmar City 3D — Make GTA 6 (gta6-01, round 11)
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
@@ -11,7 +11,7 @@ off the ferry — steal a car, run the jobs, climb from nobody to kingpin.
 
 ![Four-star chase down the Strand](screenshots/1-chase.jpg)
 ![Night shootout at the Coral Docks](screenshots/2-night.jpg)
-![STATS tab: completion, checklist, career](screenshots/3-stats.jpg)
+![CITY MAP tab: full city grid, named roads, career panel](screenshots/3-map.jpg)
 ![Title screen over the golden-hour city](screenshots/4-title.jpg)
 
 ## Play
@@ -61,9 +61,12 @@ every texture is drawn procedurally in code.
   mission ratings (Gold/Silver/Bronze), a weighted completion percentage,
   district standing, a garage, five weapons, a motorbike, and three save
   slots via localStorage.
-- **A tabbed pause menu:** MAP (full city grid, legend, standing bars),
-  STORY (ten missions, acts, ratings), STATS (completion donut, nine-line
-  checklist, medals, career stats, rank progress), CREW and SAVE.
+- **A tabbed pause menu:** MAP (full city grid with named roads and a
+  compass rose, legend markers for missions, safehouse, garage, races,
+  shops, jobs, precinct and export, plus a career panel: respect, cash,
+  jobs, completion, crew and career stats), STORY (ten missions, acts,
+  ratings), STATS (completion donut, nine-line checklist, medals, career
+  stats, rank progress), CREW and SAVE.
 - **Procedural audio:** engine hum, siren wail and a radio jingle, all
   synthesized with WebAudio — no audio files.
 
@@ -72,17 +75,17 @@ every texture is drawn procedurally in code.
 The four staged shots (`shots.json`, all `?seed=1` for a fixed city),
 each a different screen:
 
-1. `1-chase.jpg` — four-star chase, 167 KM/H, low close camera, four cruisers with flashing light bars, KESTREL-9 large overhead with a white spotlight cone on the car, roadblock ahead
-2. `2-night.jpg` — night on-foot shootout at the Coral Docks, Mission 8 HIGH WATER, muzzle flash, one enemy down, the KILO 600 bike parked by the curb, 2 stars
-3. `3-stats.jpg` — the STATS tab: 42.7% complete donut, nine-line checklist, mission medals, career stats, rank progress
-4. `4-title.jpg` — the title screen over the golden-hour city, three save slots with act names
+1. `1-chase.jpg` — four-star chase, 167 KM/H, low close camera, five cruisers with light bars frozen bright, KESTREL-9 fully in frame with a narrow white spotlight cone on the car, roadblock ahead
+2. `2-night.jpg` — night on-foot shootout at the Coral Docks, Mission 8 HIGH WATER, muzzle flash, one enemy down, the KILO 600 bike parked in the open road, 2 stars
+3. `3-map.jpg` — the CITY MAP tab: seven districts with standing, named roads, compass rose, ten-marker key, respect/cash/jobs/completion strip, crew with portraits, career stats
+4. `4-title.jpg` — the title screen over the golden-hour city, three save slots with act names, extruded 3D lettering
 
-Round 10 rebuilt the entry against the #1 entry's study: four different
-screens instead of one chase photographed four times, a full pause menu,
-street races, stunt jumps, collectibles, jobs, export, shops, dialogue
-screens, painted portraits, a day/night cycle and three save slots — and
-a fully renamed cast, crew, missions and dispatch so nothing reads as a
-copy of the leader.
+Round 11 rebuilt the entry against the round-10 grade (#909, 989,409,
+12-0 — all wins, but narrow margins): the third screenshot is now the
+full CITY MAP screen (the gap vs the leader), the chase cover is lower
+and closer with the helicopter fully in frame and light bars frozen
+bright, the night shot moves in on the hero with a rim light, and the
+title lettering is extruded 3D.
 
 ## Layout
 

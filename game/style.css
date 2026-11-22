@@ -114,7 +114,11 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 /* --- title screen + pause --- */
 #title-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(10,16,32,0.25), rgba(10,16,32,0.78)); z-index: 10; }
 .title-card { text-align: center; max-width: 680px; padding: 28px; }
-.title-card h1 { font-size: 60px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 4px 24px rgba(0,0,0,0.7); }
+.title-card h1 { font-size: 60px; font-weight: 900; letter-spacing: 2px;
+  /* Extruded 3D lettering: a stack of dark offsets under the face, so the
+     name reads as solid chrome block letters over the city, not flat text. */
+  text-shadow: 0 1px 0 #cbd5e1, 0 2px 0 #94a3b8, 0 3px 0 #64748b, 0 4px 0 #475569,
+    0 5px 0 #334155, 0 6px 0 #1e293b, 0 10px 22px rgba(0,0,0,0.75); }
 .title-card h1 span { color: #facc15; }
 .tagline { font-size: 15px; color: #e2e8f0; margin: 6px 0 14px; }
 .title-state { font-size: 13px; color: #fde68a; font-weight: 700; margin-bottom: 16px; }
@@ -166,22 +170,39 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 .menu-panel h3 { font-size: 13px; letter-spacing: 1.5px; color: #fde68a; margin-bottom: 8px; }
 .menu-foot { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 8px; }
 
-/* MAP tab */
+/* MAP tab — the full city map plus a career panel: respect, cash, jobs,
+   completion, the crew, the map key and career stats. The map canvas is
+   the left half; the right panel proves the systems behind it. */
 .map-columns { display: flex; gap: 18px; }
+.map-left { flex: none; }
 #map-canvas { border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); }
 .map-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 11px; color: #cbd5e1; }
 .map-legend i { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; align-items: center; justify-content: center; font-style: normal; font-size: 9px; font-weight: 800; color: #0b1020; margin-right: 4px; }
 .map-side { flex: 1; }
-.map-mission { background: rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; margin-bottom: 14px; }
+.map-side h3 { margin-top: 10px; }
+.map-side h3:first-child { margin-top: 0; }
+.map-stats { display: flex; gap: 8px; margin-bottom: 2px; }
+.map-stat { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 7px 8px; }
+.map-stat span { display: block; font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #94a3b8; }
+.map-stat b { display: block; font-size: 14px; color: #fde68a; margin-top: 2px; white-space: nowrap; }
+.map-stat i { display: block; font-style: normal; font-size: 10px; color: #94a3b8; margin-top: 1px; }
+.map-mission { background: rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; margin-bottom: 4px; }
 .map-mission b { display: block; font-size: 15px; color: #fde68a; }
 .map-mission span { display: block; font-size: 12px; color: #e2e8f0; margin-top: 2px; }
 .map-mission .map-district { color: #94a3b8; }
-.map-standing { list-style: none; }
-.map-standing li { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.07); }
-.map-standing li span { width: 130px; font-weight: 700; }
-.map-standing li b { font-size: 11px; margin-left: auto; }
-.standing-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.15); border-radius: 3px; overflow: hidden; }
-.standing-bar i { display: block; height: 100%; background: #4ade80; }
+.map-crew { list-style: none; }
+.map-crew li { display: flex; align-items: center; gap: 9px; padding: 4px 0; border-top: 1px solid rgba(255,255,255,0.07); }
+.map-crew li:first-child { border-top: none; }
+.map-crew-portrait { border-radius: 50%; flex: none; }
+.map-crew b { display: block; font-size: 12px; letter-spacing: 0.4px; }
+.map-crew span { display: block; font-size: 11px; color: #94a3b8; }
+.map-crew em { font-style: normal; font-size: 10px; font-weight: 800; color: #4ade80; margin-left: auto; }
+.map-key { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin-top: 0; }
+.map-key span { display: flex; align-items: center; font-size: 11px; }
+.map-career { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+.map-career li { display: flex; justify-content: space-between; padding: 4px 2px; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.07); }
+.map-career li span { color: #cbd5e1; }
+.map-career li b { color: #fff; }
 
 /* STORY tab */
 .story-list { list-style: none; }

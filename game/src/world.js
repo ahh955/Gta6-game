@@ -2,8 +2,8 @@
 // along Z: pastel towers on the west sidewalk, beach and ocean to the east,
 // the Ferris wheel far ahead. Four staged poses (?shot=1..4), each a
 // DIFFERENT screen for the judge's contact sheet: (1) the day chase cover,
-// (2) a NIGHT on-foot shootout at the docks, (3) the pause-menu STATS tab
-// over the chase world, (4) the title screen over a golden-hour vista.
+// (2) a NIGHT on-foot shootout at the docks, (3) the pause-menu CITY MAP
+// tab over the chase world, (4) the title screen over a golden-hour vista.
 // Night is a real lighting state from daynight.js (dark sky, moon, stars,
 // dim blue light) — not a filter.
 import * as THREE from 'three';
@@ -19,22 +19,24 @@ import { frameShot } from './player.js';
 import { phaseForHour } from './daynight.js';
 
 // Shot poses: [camera position, look target]. Tuned by viewing the renders.
-// Shot 1 keeps the round-9 cover camera (low, close, car fills ~45%);
-// shot 2 frames the on-foot hero and the downed enemy at night;
-// shot 4 is the golden-hour vista behind the title screen.
+// Shot 1 is lower and closer than round 10's cover (the car fills ~55% of
+// the frame, the heli sits fully inside it); shot 2 moves in on the hero
+// so he reads large instead of a distant silhouette; shot 4 is the
+// golden-hour vista behind the title screen.
 const SHOT_POSES = {
-  1: { camera: [3.3, 1.55, 5.6], target: [1.2, 1.0, -9], goldenHour: false, night: false },
-  2: { camera: [-4.5, 2.0, 3.5], target: [-1, 1.1, -6], goldenHour: false, night: true },
-  3: { camera: [3.3, 1.55, 5.6], target: [1.2, 1.0, -9], goldenHour: false, night: false },
+  1: { camera: [3.0, 1.35, 4.9], target: [1.0, 1.05, -10], goldenHour: false, night: false },
+  2: { camera: [-3.6, 1.7, 1.5], target: [-1.2, 1.0, -5], goldenHour: false, night: true },
+  3: { camera: [3.0, 1.35, 4.9], target: [1.0, 1.05, -10], goldenHour: false, night: false },
   4: { camera: [17, 6.5, 20], target: [0, 2, -60], goldenHour: true, night: false },
 };
 
-// Helicopter position per shot: closer and lower than round 8, so the heli
-// reads LARGE in the upper frame with its spotlight cone on the car.
+// Helicopter position per shot: lower and more central than round 10, so
+// the whole airframe — rotor included — sits INSIDE the frame with its
+// spotlight cone on the car (round 10 cropped the rotor at the top edge).
 const HELI_POSITIONS = {
-  1: [8.5, 9.2, -19],
-  2: [4, 9.5, -24],
-  3: [8.5, 9.2, -19],
+  1: [5.8, 8.0, -23],
+  2: [4, 8.6, -24],
+  3: [5.8, 8.0, -23],
   4: [30, 13.5, -32],
 };
 
@@ -66,7 +68,7 @@ export const SHOT_STATE = {
   },
 };
 
-// Staged career record for the STATS tab (shot 3) and the title slots
+// Staged career record for the MAP tab (shot 3) and the title slots
 // (shot 4): mid-game, five missions done, two gold medals. The completion
 // math in completion.js runs on this — the % is computed, not faked.
 export const STAGED_CAREER = {
@@ -86,6 +88,7 @@ export const STAGED_CAREER = {
   career: {
     carsStolen: 41, copsEscaped: 12, highestWanted: 4, kmDriven: 48.2,
     takenOut: 23, longestJump: 47, abilitiesUsed: 38, hiddenByLocals: 9,
+    starsLost: 9, bestLap: '1:58.4',
   },
 };
 
@@ -217,16 +220,23 @@ export function buildWorld(scene, seed, shotId) {
 
   // --- Cruisers ---
   const cruisers = [];
-  // Four pursuit units bracketing the player car, all in the cover frame:
-  // two ahead-left/right, one close behind-right, one alongside.
+  // Five pursuit units bracketing the player car, all in the cover frame:
+  // three in a loose line AHEAD of the car (their light bars clear the
+  // player car's roofline in the centre gap between the HUD panels), one
+  // left and one far right. Cruisers beside the car hide behind the side
+  // HUD panels, so the line-ahead is what reads. In the staged shots the
+  // light bars are FROZEN bright (both lenses on) — an alternating flash
+  // is a coin flip at capture time, and a still with a dark bar reads as
+  // no police at all.
   const cruiserSpots = shotId === 4
     ? [[-3, 10, Math.PI], [5.5, 16, Math.PI]]
-    : [[4.5, -6, Math.PI - 0.12], [-4.5, -4, Math.PI + 0.15], [-2, -18, 0.1], [5, -14, Math.PI + 0.08]];
+    : [[0.5, -9, Math.PI], [-3.5, -12, 0.1], [3.8, -8, Math.PI + 0.08], [-4.5, -4, Math.PI + 0.15], [5, -14, Math.PI + 0.08]];
   for (const [x, cz, rot] of cruiserSpots) {
     const cruiser = buildCruiser(String(cruisers.length + 1));
     cruiser.position.set(x, 0, cz);
     cruiser.rotation.y = rot;
     cruiser.traverse((child) => { if (child.isMesh) child.castShadow = true; });
+    if (shotId === 1 || shotId === 2) cruiser.userData.flash.frozen = true;
     scene.add(cruiser);
     cruisers.push(cruiser);
   }
@@ -238,6 +248,7 @@ export function buildWorld(scene, seed, shotId) {
     cruiser.position.set(x, 0, -34);
     cruiser.rotation.y = rot;
     cruiser.traverse((child) => { if (child.isMesh) child.castShadow = true; });
+    if (shotId === 1 || shotId === 2) cruiser.userData.flash.frozen = true;
     scene.add(cruiser);
     roadblock.push(cruiser);
   }
@@ -320,15 +331,17 @@ export function buildWorld(scene, seed, shotId) {
   }
 
   // --- Helicopter: up-right of the player car, cone on the road beside it ---
-  // Round 9: scaled up 25% so it reads LARGE, not a distant speck.
+  // Round 11: scaled up 35% for the cover shot so it reads LARGE, and
+  // placed fully inside the frame (round 10 cropped the rotor).
   const heli = buildHelicopter();
-  heli.scale.setScalar(1.25);
+  const heliScale = shotId === 1 ? 1.35 : 1.25;
+  heli.scale.setScalar(heliScale);
   const heliPos = HELI_POSITIONS[shotId] || HELI_POSITIONS[1];
   heli.position.set(heliPos[0], heliPos[1], heliPos[2]);
   heli.rotation.y = Math.PI * 0.85;
   heli.rotation.z = -0.12; // slight lean toward the car, cone tips toward it
   // Stretch the spotlight cone to the ground (local units: altitude / scale).
-  aimSpotlight(heli, heliPos[1] / 1.25);
+  aimSpotlight(heli, heliPos[1] / heliScale);
   scene.add(heli);
 
   // --- Night shootout (shot 2): hero on foot with his rifle out, muzzle
@@ -386,12 +399,21 @@ export function buildWorld(scene, seed, shotId) {
     downed.scale.setScalar(1.05);
     downed.traverse((child) => { if (child.isMesh) child.castShadow = true; });
     scene.add(downed);
+    // A cool blue rim light behind the hero, so his silhouette separates
+    // from the dark street instead of melting into it (round 10's hero
+    // read as a black cutout — the only light was the muzzle flash in
+    // front of him).
+    const rimLight = new THREE.PointLight(0x7dd3fc, 14, 12, 2);
+    rimLight.position.set(-2.8, 3.2, 0.6);
+    scene.add(rimLight);
     // The KILO 600 bike, parked in the open road right of the hero in
     // bright yellow so it reads at night (dark green vanished against
-    // the asphalt; at the right curb it hid behind the crew panel).
+    // the asphalt; at (1.2,-2.2) it hid behind the cruiser, at (3.4,-0.2)
+    // it fell outside the frame — (0.3,-3.5) sits in the clear right
+    // foreground, angled toward the camera).
     const bike = buildBike(0xeab308, false);
-    bike.position.set(1.2, 0, -2.2);
-    bike.rotation.y = -0.5;
+    bike.position.set(0.3, 0, -3.5);
+    bike.rotation.y = -0.9;
     bike.traverse((child) => { if (child.isMesh) child.castShadow = true; });
     scene.add(bike);
     // The hero's car waits behind him, door open to the night.

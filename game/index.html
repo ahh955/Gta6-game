@@ -138,15 +138,24 @@
 
     <div class="menu-panel" data-panel="MAP">
       <div class="map-columns">
-        <div>
-          <canvas id="map-canvas" width="460" height="380"></canvas>
-          <div id="map-legend" class="map-legend"></div>
+        <div class="map-left">
+          <canvas id="map-canvas" width="500" height="460"></canvas>
         </div>
         <div class="map-side">
+          <div class="map-stats">
+            <div class="map-stat"><span>RESPECT</span><b id="map-respect">OPERATOR · RANK 4</b><i id="map-rp">5,100 / 6,500 RP</i></div>
+            <div class="map-stat"><span>CASH</span><b id="map-cash">$14,275</b><i>Solmar City Bank</i></div>
+            <div class="map-stat"><span>DISTRICT JOBS</span><b id="map-jobs">3/7</b><i>jobs complete</i></div>
+            <div class="map-stat"><span>COMPLETE</span><b id="map-complete">42.7%</b><i id="map-missions">5/10 missions</i></div>
+          </div>
           <h3>CURRENT MISSION</h3>
           <div id="map-mission" class="map-mission"></div>
-          <h3>DISTRICT STANDING</h3>
-          <ul id="map-standing" class="map-standing"></ul>
+          <h3>CREW — THREE HANDS, ONE CITY</h3>
+          <ul id="map-crew" class="map-crew"></ul>
+          <h3>MAP KEY</h3>
+          <div id="map-legend" class="map-legend map-key"></div>
+          <h3>CAREER</h3>
+          <ul id="map-career" class="map-career"></ul>
         </div>
       </div>
     </div>

@@ -1,15 +1,16 @@
 // Tabbed pause menu for Solmar City 3D: MAP / STORY / STATS / CREW /
-// SAVE — the menu system the top entries all show. The STATS tab is the
-// single biggest margin item in the game: one screen proves nine systems
-// (completion %, checklist, medals, career stats, rank progress, save
-// slots). Open with P or Esc in free play; the screenshot staging opens
-// it on the STATS tab (?shot=3). All content is filled from the real
+// SAVE — the menu system the top entries all show. The MAP tab is the
+// round-11 cover screen: the full city grid with named roads and markers
+// beside a career panel (respect, cash, jobs, completion, crew, map key,
+// career stats) — one screen proves the map, the crew and the career at
+// once. Open with P or Esc in free play; the screenshot staging opens
+// it on the MAP tab (?shot=3). All content is filled from the real
 // career record — the same numbers the save slots carry.
 import { MISSIONS, getMission } from './missions.js';
-import { CREW, DISTRICTS, rankFor } from './crew.js';
+import { CREW, rankFor } from './crew.js';
 import { completionPercent, completionChecklist } from './completion.js';
 import { medalStrip, nextUnlock } from './progression.js';
-import { drawCityMap, LEGEND, standingLabel } from './citymap.js';
+import { drawCityMap, LEGEND } from './citymap.js';
 import { drawPortrait } from './portraits.js';
 import { listSlots } from './save.js';
 
@@ -109,20 +110,62 @@ function fillCrew() {
   }
 }
 
+// The MAP tab's career stats: the six numbers the map screen's right
+// panel shows (stars lost and best lap live on the career record; race
+// wins live on progress; knockouts are the career's taken-out count).
+const MAP_CAREER_LABELS = [
+  ['carsStolen', 'Cars stolen'],
+  ['starsLost', 'Stars lost'],
+  ['takenOut', 'Knockouts'],
+  ['raceWins', 'Race wins'],
+  ['bestLap', 'Best lap'],
+  ['kmDriven', 'Distance driven'],
+];
+
+function formatMapCareerValue(key, career) {
+  const record = career.career || {};
+  if (key === 'raceWins') return String((career.progress || {}).racesWon ?? 0);
+  if (key === 'kmDriven') return `${record.kmDriven ?? 0} km`;
+  if (key === 'bestLap') return record.bestLap || '—';
+  return String(record[key] ?? 0);
+}
+
 function fillMap(career) {
   drawCityMap($('map-canvas'), (career.progress || {}).standing, [
     { x: 84, y: 60, key: 'M' },
     { x: 19, y: 15, key: 'W' },
   ]);
+  // Stat strip: respect, cash, jobs, completion — the career at a glance.
+  const { current, next, index } = rankFor(career.rp || 0);
+  $('map-respect').textContent = `${current.name} · RANK ${index + 1}`;
+  $('map-rp').textContent = next
+    ? `${(career.rp || 0).toLocaleString('en-US')} / ${next.rp.toLocaleString('en-US')} RP`
+    : 'MAX RANK';
+  $('map-cash').textContent = `$${(career.cash || 0).toLocaleString('en-US')}`;
+  $('map-jobs').textContent = `${(career.progress || {}).jobsDone ?? 0}/7`;
+  const percent = completionPercent(career.progress);
+  $('map-complete').textContent = `${percent}%`;
+  $('map-missions').textContent = `${(career.progress || {}).missionsDone ?? 0}/10 missions`;
+  const mission = getMission(career.missionId || 1);
+  $('map-mission').innerHTML = `<b>${mission.name}</b><span>${mission.objective}</span><span class="map-district">${mission.district}</span>`;
+  // Crew: portraits, roles, loyalty.
+  $('map-crew').innerHTML = CREW.map((member) => (
+    `<li>
+      <canvas class="map-crew-portrait" width="32" height="32" data-character="${member.id}"></canvas>
+      <div><b>${member.name.toUpperCase()} · ${member.role.toUpperCase()}</b>
+      <span>${member.ability} — ${member.description}</span></div>
+      <em>${member.loyalty}% LOYAL</em>
+    </li>`
+  )).join('');
+  for (const canvas of document.querySelectorAll('#map-crew .map-crew-portrait')) {
+    drawPortrait(canvas, canvas.dataset.character);
+  }
   $('map-legend').innerHTML = LEGEND.map((l) => (
     `<span><i style="background:${l.color}">${l.key}</i>${l.label}</span>`
   )).join('');
-  const mission = getMission(career.missionId || 1);
-  $('map-mission').innerHTML = `<b>${mission.name}</b><span>${mission.objective}</span><span class="map-district">${mission.district}</span>`;
-  $('map-standing').innerHTML = DISTRICTS.map((d) => {
-    const s = ((career.progress || {}).standing || {})[d.name] ?? d.standing;
-    return `<li><span>${d.name}</span><div class="standing-bar"><i style="width:${s}%"></i></div><b>${standingLabel(s)} · ${s}</b></li>`;
-  }).join('');
+  $('map-career').innerHTML = MAP_CAREER_LABELS.map(([key, label]) => (
+    `<li><span>${label}</span><b>${formatMapCareerValue(key, career)}</b></li>`
+  )).join('');
 }
 
 function slotHtml(slot, index) {

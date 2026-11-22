@@ -83,24 +83,28 @@ export function buildHelicopter() {
   const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.3, 12), dark);
   housing.position.set(0.9, -1.35, 0);
   heli.add(housing);
-  // Round 9: brighter and narrower — the round-8 cone (opacity 0.11) was
-  // invisible against a bright sky. The cone's length is set by
-  // aimSpotlight() once the caller knows the heli's altitude.
+  // Round 11: the round-10 cone (opacity 0.2) washed out against a bright
+  // sky — but 0.28 (first r11 try) blew the whole centre of the frame
+  // white, and 0.15 (second try) was too faint to read as a beam. 0.22
+  // with the heli further out reads as a narrow beam without washing
+  // the road out. The cone's length is set by aimSpotlight() once the
+  // caller knows the heli's altitude.
   const coneMat = new THREE.MeshBasicMaterial({
-    color: 0xfffbe8, transparent: true, opacity: 0.2,
+    color: 0xfffbe8, transparent: true, opacity: 0.22,
     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
   });
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.3, 11, 24, 1, true), coneMat);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.1, 11, 24, 1, true), coneMat);
   // Cone points down from the belly toward the ground.
   cone.position.set(0.9, -1.35 - 5.5, 0);
   cone.rotation.x = Math.PI;
   heli.add(cone);
-  // Bright pool where the beam lands (positioned by aimSpotlight).
+  // Bright pool where the beam lands (positioned by aimSpotlight) —
+  // kept small and soft: a big bright pool washes the road out.
   const poolMat = new THREE.MeshBasicMaterial({
-    map: glowTexture, color: 0xfff6c0, transparent: true, opacity: 0.6,
+    map: glowTexture, color: 0xfff6c0, transparent: true, opacity: 0.35,
     blending: THREE.AdditiveBlending, depthWrite: false,
   });
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), poolMat);
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(1.8, 24), poolMat);
   pool.rotation.x = -Math.PI / 2;
   pool.position.set(0.9, -12.6, 0);
   heli.add(pool);

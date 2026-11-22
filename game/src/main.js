@@ -4,8 +4,8 @@
 // shops, a crew with abilities, a tabbed pause menu (MAP/STORY/STATS/
 // CREW/SAVE), a day/night cycle and three save slots. Drive the boulevard,
 // run missions, outrun Solmar PD. URL params: ?shot=1..4 stages a
-// screenshot pose (1 day chase, 2 night shootout, 3 stats screen, 4 title
-// screen), ?seed=N fixes the city layout.
+// screenshot pose (1 day chase, 2 night shootout, 3 city map screen, 4
+// title screen), ?seed=N fixes the city layout.
 import * as THREE from 'three';
 import { getMission } from './missions.js';
 import { createCrewState } from './crew.js';
@@ -164,12 +164,12 @@ if (shotMode) {
     document.getElementById('hud').style.display = 'none';
     fillTitleSlots(STAGED_SLOTS);
   } else if (shotId === 3) {
-    // STATS tab of the pause menu over the chase world.
+    // CITY MAP tab of the pause menu over the chase world.
     document.getElementById('hud').style.display = 'none';
     startGame();
     paused = true;
     document.getElementById('menu-clock').textContent = `${state.clock} · DAY`;
-    menu.open('STATS', STAGED_CAREER);
+    menu.open('MAP', STAGED_CAREER);
   } else {
     startGame();
   }
