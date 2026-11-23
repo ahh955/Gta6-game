@@ -8,7 +8,7 @@ export const DAY_PHASES = [
   { name: 'NIGHT', from: 21, to: 5, sunColor: 0x8fb4ff, sunIntensity: 0.55, hemi: 0.35, fog: 0x0d1526, skyTop: 0x0a1230, skyHorizon: 0x1c2b52, neon: true },
   { name: 'DAWN', from: 5, to: 8, sunColor: 0xffb27a, sunIntensity: 1.6, hemi: 0.8, fog: 0xd8c9b0, skyTop: 0x5b7fd4, skyHorizon: 0xffc98a, neon: false },
   { name: 'DAY', from: 8, to: 17, sunColor: 0xfff2d9, sunIntensity: 3.0, hemi: 1.5, fog: 0xcfe9f7, skyTop: 0x2f7fd0, skyHorizon: 0xcfe9f7, neon: false },
-  { name: 'GOLDEN HOUR', from: 17, to: 19, sunColor: 0xffc07a, sunIntensity: 2.4, hemi: 0.9, fog: 0xf7c98a, skyTop: 0x3b5bdb, skyHorizon: 0xffb26b, neon: false },
+  { name: 'GOLDEN HOUR', from: 17, to: 19, sunColor: 0xffc07a, sunIntensity: 2.7, hemi: 1.05, fog: 0xf7c98a, skyTop: 0x3b5bdb, skyHorizon: 0xffb26b, neon: false },
   { name: 'DUSK', from: 19, to: 21, sunColor: 0xff8a5c, sunIntensity: 1.2, hemi: 0.55, fog: 0x8a6a8f, skyTop: 0x2b3a6e, skyHorizon: 0xff9a7a, neon: true },
 ];
 

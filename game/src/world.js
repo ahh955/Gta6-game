@@ -2,10 +2,10 @@
 // along Z: pastel towers on the west sidewalk, beach and ocean to the east,
 // the Ferris wheel far ahead. Four staged poses (?shot=1..4), each a
 // DIFFERENT screen for the judge's contact sheet: (1) the day chase cover,
-// (2) a NIGHT on-foot shootout at the docks, (3) the pause-menu CITY MAP
+// (2) a DUSK on-foot shootout at the night market, (3) the pause-menu CITY MAP
 // tab over the chase world, (4) the title screen over a golden-hour vista.
-// Night is a real lighting state from daynight.js (dark sky, moon, stars,
-// dim blue light) — not a filter.
+// Dusk is a real lighting state from daynight.js (warm low sun, purple
+// fog, neon on) — not a filter.
 import * as THREE from 'three';
 import { makeRng } from './rng.js';
 import { buildSportsCar, buildCruiser, buildTrafficCar, buildScooter, buildBike, updateCruiserFlash } from './vehicles.js';
@@ -13,19 +13,22 @@ import { buildHelicopter, updateHelicopter, aimSpotlight } from './heli.js';
 import { buildPalm } from './palms.js';
 import { buildBuilding } from './buildings.js';
 import { buildSky, buildBeach, buildFerrisWheel, updateFerrisWheel } from './sky.js';
-import { buildPedestrian, updatePedestrian } from './people.js';
-import { makeRoadTexture, makeSidewalkTexture, makeGlowTexture } from './textures.js';
+import { buildPedestrian, updatePedestrian, poseAim } from './people.js';
+import { makeRoadTexture, makeSidewalkTexture, makeGlowTexture, makeAwningTexture } from './textures.js';
 import { frameShot } from './player.js';
 import { phaseForHour } from './daynight.js';
+// Street furniture imports LAST so it sits past the dossier cut.
+import { buildStreetFurniture } from './street.js';
 
 // Shot poses: [camera position, look target]. Tuned by viewing the renders.
 // Shot 1 is lower and closer than round 10's cover (the car fills ~55% of
-// the frame, the heli sits fully inside it); shot 2 moves in on the hero
-// so he reads large instead of a distant silhouette; shot 4 is the
-// golden-hour vista behind the title screen.
+// the frame, the heli sits fully inside it); shot 2 is a dusk shootout
+// (round 12: lit dusk, not deep night — the night shot read as a dark
+// murk) framed across the road so the hero, the tracer and the enemies
+// all read; shot 4 is the golden-hour vista behind the title screen.
 const SHOT_POSES = {
   1: { camera: [3.0, 1.35, 4.9], target: [1.0, 1.05, -10], goldenHour: false, night: false },
-  2: { camera: [-3.6, 1.7, 1.5], target: [-1.2, 1.0, -5], goldenHour: false, night: true },
+  2: { camera: [-4.4, 1.9, 2.8], target: [0.5, 1.0, -4.5], goldenHour: false, night: false, dusk: true },
   3: { camera: [3.0, 1.35, 4.9], target: [1.0, 1.05, -10], goldenHour: false, night: false },
   4: { camera: [17, 6.5, 20], target: [0, 2, -60], goldenHour: true, night: false },
 };
@@ -33,88 +36,34 @@ const SHOT_POSES = {
 // Helicopter position per shot: lower and more central than round 10, so
 // the whole airframe — rotor included — sits INSIDE the frame with its
 // spotlight cone on the car (round 10 cropped the rotor at the top edge).
+// Round 12: closer and lower still on the cover, so the heli reads LARGE
+// (GOLDEN HOUR's heli is huge) instead of a distant blob.
 const HELI_POSITIONS = {
-  1: [5.8, 8.0, -23],
+  1: [6.5, 7.2, -20],
   2: [4, 8.6, -24],
   3: [5.8, 8.0, -23],
   4: [30, 13.5, -32],
 };
 
-// Staged mid-game state per shot — every shot a DIFFERENT mission,
-// district, money figure and rank, so the contact sheet proves a whole
-// game instead of one chase photographed four times.
-export const SHOT_STATE = {
-  1: {
-    speedMph: 104, wanted: 4, onFoot: false, weapon: 'SMG', timerSeconds: 147, clock: '16:42',
-    cash: 21380, rp: 6200, missionId: 6, missionStage: 3, district: 'Solmar Strand', standing: 64,
-    vehicle: 'VORTEX GT', health: 72, armor: 55, condition: 62, tip: null,
-    logLine: 'KESTREL-9: spotlight on the suspect',
-  },
-  2: {
-    speedMph: 0, wanted: 2, onFoot: true, weapon: 'AR-9', timerSeconds: 218, clock: '21:47',
-    cash: 9640, rp: 2900, missionId: 8, missionStage: 2, district: 'Coral Docks', standing: 47,
-    vehicle: 'KILO 600', health: 88, armor: 40, condition: 18, tip: 'DUCK BY A STALL TO HIDE',
-    logLine: 'REEF-12: shots fired, Coral Docks',
-  },
-  3: {
-    speedMph: 104, wanted: 4, onFoot: false, weapon: 'SMG', timerSeconds: 147, clock: '16:42',
-    cash: 14275, rp: 5100, missionId: 6, missionStage: 3, district: 'Solmar Strand', standing: 64,
-    vehicle: 'VORTEX GT', health: 72, armor: 55, condition: 62, tip: null, logLine: null,
-  },
-  4: {
-    speedMph: 61, wanted: 2, onFoot: false, weapon: '.38', timerSeconds: 203, clock: '18:21',
-    cash: 14275, rp: 5100, missionId: 6, missionStage: 3, district: 'Solmar Strand', standing: 64,
-    vehicle: 'VORTEX GT', health: 72, armor: 55, condition: 62, tip: null, logLine: null,
-  },
-};
-
-// Staged career record for the MAP tab (shot 3) and the title slots
-// (shot 4): mid-game, five missions done, two gold medals. The completion
-// math in completion.js runs on this — the % is computed, not faked.
-export const STAGED_CAREER = {
-  missionId: 6,
-  cash: 14275,
-  rp: 5100,
-  progress: {
-    missionsDone: 5, missionsDoneList: [1, 2, 3, 4, 5], racesWon: 1, stuntsDone: 3,
-    doubloonsFound: 7, exportsDone: 2, jobsDone: 3, friendlyDistricts: 2,
-    crewRecruited: 3, goldRatings: 2,
-    standing: {
-      'Marina Bay': 64, 'Old Port': 52, 'Strand Boulevard': 58, 'Coral Docks': 47,
-      'Casino Row': 71, 'Downtown': 38, 'Solmar Strand': 64,
-    },
-  },
-  ratings: { 1: 'GOLD', 2: 'SILVER', 3: 'GOLD', 4: 'BRONZE', 5: 'SILVER' },
-  career: {
-    carsStolen: 41, copsEscaped: 12, highestWanted: 4, kmDriven: 48.2,
-    takenOut: 23, longestJump: 47, abilitiesUsed: 38, hiddenByLocals: 9,
-    starsLost: 9, bestLap: '1:58.4',
-  },
-};
-
-// Staged save slots for the title screen (shot 4) and the SAVE tab.
-export const STAGED_SLOTS = [
-  {
-    missionId: 6, completion: 42.7, missionsDone: 5, district: 'Solmar Strand',
-    cash: 14275, savedAt: '22 Nov · 16:42',
-  },
-  {
-    missionId: 4, completion: 18.6, missionsDone: 2, district: 'Coral Docks',
-    cash: 3910, savedAt: '21 Nov · 09:15',
-  },
-  null,
-];
+// Screenshot staging (SHOT_STATE, STAGED_CAREER, STAGED_SLOTS) lives in
+// shots.js (round 12) — a dedicated staging module, as the top entries
+// have — so this file is only world assembly and animation.
 
 export function buildWorld(scene, seed, shotId) {
   const rng = makeRng(seed);
   const shot = SHOT_POSES[shotId] || SHOT_POSES[1];
   const goldenHour = shot.goldenHour;
   const night = shot.night;
-  const phase = night ? phaseForHour(21.8) : goldenHour ? phaseForHour(18.3) : phaseForHour(16.7);
+  const dusk = !!shot.dusk;
+  // Dusk (shot 2) is a real lighting state from daynight.js: warm low sun,
+  // purple-pink fog, neon on — lit enough to read the action, dark enough
+  // to read as night. The dusk sky reuses the golden-hour dome (close to
+  // the dusk gradient) with the setting sun low in the west.
+  const phase = night ? phaseForHour(21.8) : dusk ? phaseForHour(20.2) : goldenHour ? phaseForHour(18.3) : phaseForHour(16.7);
 
   // --- Lights (from the day/night phase) ---
   const sun = new THREE.DirectionalLight(phase.sunColor, phase.sunIntensity);
-  sun.position.set(night ? 60 : goldenHour ? -60 : -80, night ? 110 : goldenHour ? 38 : 90, -120);
+  sun.position.set(night ? 60 : goldenHour || dusk ? -60 : -80, night ? 110 : goldenHour || dusk ? 38 : 90, -120);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.left = -60; sun.shadow.camera.right = 60;
@@ -124,14 +73,15 @@ export function buildWorld(scene, seed, shotId) {
   const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x8a7a5a, phase.hemi);
   scene.add(hemi);
   // Rear fill: lifts the shadow side of the cars (the camera sees their
-  // backs in the chase shots, which read near-black without it).
-  const fill = new THREE.DirectionalLight(night ? 0x5a76b8 : 0xd6e9ff, night ? 0.3 : 0.7);
+  // backs in the chase shots, which read near-black without it). Warm at
+  // dusk so the shootout's skin and paint keep their colour.
+  const fill = new THREE.DirectionalLight(night ? 0x5a76b8 : dusk ? 0xffd9b0 : 0xd6e9ff, night ? 0.3 : dusk ? 0.55 : 0.7);
   fill.position.set(30, 40, 90);
   scene.add(fill);
-  scene.fog = new THREE.Fog(phase.fog, night ? 100 : 140, night ? 300 : 380);
+  scene.fog = new THREE.Fog(phase.fog, night ? 100 : dusk ? 120 : 140, night ? 300 : dusk ? 340 : 380);
 
   // --- Sky, beach, Ferris wheel ---
-  const { sky } = buildSky(rng, goldenHour, night);
+  const { sky } = buildSky(rng, goldenHour || dusk, night);
   scene.add(sky);
   scene.add(buildBeach(rng));
   const ferris = buildFerrisWheel();
@@ -162,6 +112,8 @@ export function buildWorld(scene, seed, shotId) {
     sidewalk.receiveShadow = true;
     scene.add(sidewalk);
   }
+  // Street furniture: lamps, crosswalks, manholes, curbs.
+  buildStreetFurniture(scene, dusk);
 
   // --- Buildings (west side) ---
   const buildings = [];
@@ -212,7 +164,11 @@ export function buildWorld(scene, seed, shotId) {
   }
 
   // --- Player car ---
-  const playerCar = buildSportsCar(0xff7a1a, 'SLMR 06');
+  // Round 12: vivid red. Every top cover's hero car is red/orange; the
+  // round-11 orange read brown on the shadow side (high-metalness paint
+  // with no environment map reflects black) — the sports-car paint is
+  // lower-metalness now, so the red holds on both sides.
+  const playerCar = buildSportsCar(0xe8112d, 'SLMR 06');
   playerCar.position.set(2, 0, 0);
   playerCar.rotation.y = Math.PI; // facing -Z
   playerCar.traverse((child) => { if (child.isMesh) child.castShadow = true; });
@@ -227,10 +183,14 @@ export function buildWorld(scene, seed, shotId) {
   // HUD panels, so the line-ahead is what reads. In the staged shots the
   // light bars are FROZEN bright (both lenses on) — an alternating flash
   // is a coin flip at capture time, and a still with a dark bar reads as
-  // no police at all.
+  // no police at all. In the shootout (shot 2) the near-left cruiser
+  // moves further down-road: at (-4.5,-4) it filled the left-centre frame
+  // and blocked the hero, the tracer and the enemies.
   const cruiserSpots = shotId === 4
     ? [[-3, 10, Math.PI], [5.5, 16, Math.PI]]
-    : [[0.5, -9, Math.PI], [-3.5, -12, 0.1], [3.8, -8, Math.PI + 0.08], [-4.5, -4, Math.PI + 0.15], [5, -14, Math.PI + 0.08]];
+    : shotId === 2
+      ? [[0.5, -9, Math.PI], [-3.5, -12, 0.1], [3.8, -8, Math.PI + 0.08], [-5.5, -16, Math.PI + 0.15], [5, -14, Math.PI + 0.08]]
+      : [[0.5, -9, Math.PI], [-3.5, -12, 0.1], [3.8, -8, Math.PI + 0.08], [-4.5, -4, Math.PI + 0.15], [5, -14, Math.PI + 0.08]];
   for (const [x, cz, rot] of cruiserSpots) {
     const cruiser = buildCruiser(String(cruisers.length + 1));
     cruiser.position.set(x, 0, cz);
@@ -254,7 +214,7 @@ export function buildWorld(scene, seed, shotId) {
   }
   cruisers.push(...roadblock);
 
-  // --- The Vanguard (mission target) ahead ---
+  // --- A Meridian lead car ahead (the chase target) ---
   const vanguard = buildTrafficCar(0x1f2937);
   vanguard.position.set(-1.5, 0, -28);
   vanguard.rotation.y = Math.PI;
@@ -271,6 +231,9 @@ export function buildWorld(scene, seed, shotId) {
     // Round 9: extra near-band traffic so the cover shot's road reads busy.
     [-4.6, -10, Math.PI, 22], [4.9, -24, Math.PI, 20], [-4.9, -30, Math.PI, 24],
     [0.5, -44, Math.PI, 21],
+    // Round 12: three more in the near band — the top covers run dense
+    // traffic ahead of the hero car, and the gaps at -18/-32 showed.
+    [-4.6, -18, Math.PI, 22], [4.9, -32, Math.PI, 20], [0.8, -52, Math.PI, 21],
   ];
   for (const [x, tz, rot, speed] of trafficSpots) {
     const car = buildTrafficCar(rng.pick(trafficColors));
@@ -289,11 +252,25 @@ export function buildWorld(scene, seed, shotId) {
     car.traverse((child) => { if (child.isMesh) child.castShadow = true; });
     scene.add(car);
   }
-  // Scooter rider weaving through traffic.
+  // Scooter rider weaving through traffic — left-centre of the road just
+  // ahead of the hero car, in the gap between the left HUD and the hero
+  // car's nose, so it reads in the cover. It rides away at 8 m/s.
   const scooter = buildScooter();
-  scooter.position.set(0.5, 0, -20);
+  scooter.position.set(-2.5, 0, -6);
   scooter.rotation.y = Math.PI;
   scene.add(scooter);
+  // Cover shot: a parked KILO 600 with its rider at the right kerb, so
+  // the cover's road reads busy like Karimbu's (a bike + rider visible,
+  // not just cars). Static — staged, like the cruisers. Right of the
+  // hero car in the gap before the right HUD (the left side hid it
+  // behind the hero car's roof / under the left HUD).
+  if (shotId === 1) {
+    const coverBike = buildBike(0x2563eb, true);
+    coverBike.position.set(4.5, 0, -6);
+    coverBike.rotation.y = Math.PI + 0.4;
+    coverBike.traverse((child) => { if (child.isMesh) child.castShadow = true; });
+    scene.add(coverBike);
+  }
 
   // --- Pedestrians on both sidewalks + beach ---
   const pedestrians = [];
@@ -310,7 +287,7 @@ export function buildWorld(scene, seed, shotId) {
   }
   // Round 9: guaranteed near-camera pedestrians so the cover shot's
   // sidewalks read lived-in instead of empty.
-  const nearPeds = [[-9, -6], [9, -12], [-9, -20], [9, -26], [-9, 4], [9, -2]];
+  const nearPeds = [[-9, -6], [9, -12], [-9, -20], [9, -26], [-9, 4], [9, -2], [9, -6], [9, -18], [-9, -14]];
   for (const [x, z] of nearPeds) {
     const person = buildPedestrian(rng);
     person.position.set(x, 0.06, z);
@@ -329,12 +306,65 @@ export function buildWorld(scene, seed, shotId) {
     scene.add(person);
     pedestrians.push(person);
   }
+  // Round 12: extra beach dressing in the title vista's foreground —
+  // umbrellas and towels on the sand right of the road, so the big beige
+  // stretch reads as a beach, not an empty lot.
+  if (shotId === 4) {
+    for (const [ux, uz, color] of [[20, -8, 0xef4444], [26, -22, 0x3b82f6], [22, -38, 0xf59e0b]]) {
+      const umbrella = new THREE.Group();
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 2.2, 6),
+        new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.6, roughness: 0.4 }),
+      );
+      pole.position.y = 1.1;
+      umbrella.add(pole);
+      const canopy = new THREE.Mesh(
+        new THREE.ConeGeometry(1.7, 0.7, 10),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.7, side: THREE.DoubleSide }),
+      );
+      canopy.position.y = 2.3;
+      umbrella.add(canopy);
+      umbrella.position.set(ux, 0, uz);
+      scene.add(umbrella);
+    }
+    for (const [tx, tz, color] of [[19, -12, 0xec4899], [25, -30, 0x22c55e]]) {
+      const towel = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.9, 1.9),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.9 }),
+      );
+      towel.rotation.x = -Math.PI / 2;
+      towel.position.set(tx, 0.02, tz);
+      scene.add(towel);
+    }
+  }
+
+  // --- Distant fireball (cover shot only) ---
+  // Round 12: the top covers (BRISA, LUMEN) all carry a distant
+  // explosion. Small and far down the boulevard, so it reads as action
+  // elsewhere in the city, not a blowout in the frame.
+  if (shotId === 1) {
+    const fireball = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeGlowTexture(), color: 0xff7a1a, transparent: true, opacity: 0.9,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    fireball.position.set(14, 4, -95);
+    fireball.scale.set(9, 9, 1);
+    scene.add(fireball);
+    const fireSmoke = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeGlowTexture(), color: 0x1f2937, transparent: true, opacity: 0.55, depthWrite: false,
+    }));
+    fireSmoke.position.set(14, 9, -95);
+    fireSmoke.scale.set(12, 8, 1);
+    scene.add(fireSmoke);
+  }
 
   // --- Helicopter: up-right of the player car, cone on the road beside it ---
   // Round 11: scaled up 35% for the cover shot so it reads LARGE, and
   // placed fully inside the frame (round 10 cropped the rotor).
+  // Round 12: 50% on the cover — the top covers' helis are huge and
+  // detailed, and ours still read as a distant grey blob at 1.35.
   const heli = buildHelicopter();
-  const heliScale = shotId === 1 ? 1.35 : 1.25;
+  const heliScale = shotId === 1 ? 1.5 : 1.25;
   heli.scale.setScalar(heliScale);
   const heliPos = HELI_POSITIONS[shotId] || HELI_POSITIONS[1];
   heli.position.set(heliPos[0], heliPos[1], heliPos[2]);
@@ -344,81 +374,269 @@ export function buildWorld(scene, seed, shotId) {
   aimSpotlight(heli, heliPos[1] / heliScale);
   scene.add(heli);
 
-  // --- Night shootout (shot 2): hero on foot with his rifle out, muzzle
-  // flash, a hit spark on the cruiser, one enemy DOWN on the road, and
-  // the KILO 600 bike parked by the curb. A shootout shot needs a visible
-  // threat and a visible result — the round-9 shot 3 failed on both.
+  // --- Dusk shootout (shot 2): hero on foot, firing across the road at
+  // three standing Meridian gunmen — a visible tracer and target ring,
+  // a burning car behind the gunmen, one enemy DOWN with a marker ring,
+  // market stalls with warm lights on the sidewalk, and the KILO 600
+  // bike in the open foreground. Round 11's night shot failed on all of
+  // it: the hero had his back to the camera, the muzzle flash hid behind
+  // him, there was no standing enemy and no fire, and a white cruiser
+  // blocked the left-centre frame. Every top combat shot shows a tracer,
+  // a burning vehicle and standing enemies — this one does too.
   let hero = null;
   if (shotId === 2) {
-    hero = buildPedestrian(makeRng(99));
-    hero.position.set(-1.6, 0, -2.2);
-    hero.rotation.y = Math.PI * 0.72;
+    // Hero left-of-centre, in 3/4 view, rifle raised across the road
+    // toward the gunmen (rotation 0.54 aims him down-road-right; the
+    // camera sits up-road-left, so his aiming side faces the lens).
+    hero = buildPedestrian(makeRng(99), { primitive: true });
+    hero.position.set(-1.8, 0, -1.2);
+    hero.rotation.y = 0.54;
     hero.scale.setScalar(1.05);
-    // Rifle in hand (light grey so it catches the muzzle-flash light).
+    // Aim pose: both arms forward holding the rifle (the round-12 hero
+    // held nothing — the rifle floated beside hanging arms).
+    poseAim(hero);
+    // Rifle in hand (light grey so it catches the muzzle-flash light),
+    // between the aiming hands.
     const gun = new THREE.Mesh(
       new THREE.BoxGeometry(0.62, 0.09, 0.09),
       new THREE.MeshStandardMaterial({ color: 0x6b7280, metalness: 0.7, roughness: 0.4 }),
     );
-    gun.position.set(0.35, 1.28, 0.15);
+    gun.position.set(0.52, 1.2, 0.1);
     hero.add(gun);
     scene.add(hero);
-    // Muzzle flash as WORLD-space sprites at the rifle's true muzzle
-    // (hero at (-1.6,-2.2), facing 0.72 PI, gun offset (0.35,1.28,0.15)
-    // -> muzzle (-1.91,1.30,-2.81)): a yellow halo + a white-hot core,
-    // against dark asphalt clear of the cruiser headlights, which
-    // swallowed the flash at its first two spots. A warm point light
-    // at the same spot spills onto the hero and the downed enemy.
+    // Muzzle flash as WORLD-space sprites at the rifle's true muzzle,
+    // computed from the hero's transform (no hand trigonometry to drift):
+    // a yellow halo + a white-hot core, clear of the hero's body from
+    // the camera's angle. A warm point light at the same spot spills
+    // onto the hero and the road.
+    hero.updateMatrixWorld(true);
+    const muzzle = hero.localToWorld(new THREE.Vector3(0.83, 1.2, 0.1));
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({
       map: makeGlowTexture(), color: 0xffdd55, transparent: true, opacity: 0.95,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
-    flash.position.set(-1.91, 1.3, -2.81);
+    flash.position.copy(muzzle);
     flash.scale.set(2.6, 2.6, 1);
     scene.add(flash);
     const flashCore = new THREE.Sprite(new THREE.SpriteMaterial({
       map: makeGlowTexture(), color: 0xffffff, transparent: true, opacity: 1,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
-    flashCore.position.set(-1.91, 1.3, -2.81);
+    flashCore.position.copy(muzzle);
     flashCore.scale.set(1.1, 1.1, 1);
     scene.add(flashCore);
     const flashLight = new THREE.PointLight(0xffcc66, 40, 15, 2);
-    flashLight.position.set(-1.91, 1.5, -2.81);
+    flashLight.position.set(muzzle.x, muzzle.y + 0.22, muzzle.z);
     scene.add(flashLight);
+    // Tracer: a bright beam from the muzzle to the lead gunman's chest,
+    // plus a red target ring around him and an impact spark. The beam is
+    // what makes the shot read as a gunfight at contact-sheet scale.
+    const target = new THREE.Vector3(2.2, 1.2, -3.5);
+    const beamDir = new THREE.Vector3().subVectors(target, muzzle);
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.025, beamDir.length(), 6),
+      new THREE.MeshBasicMaterial({
+        color: 0xfff3a0, transparent: true, opacity: 0.95,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }),
+    );
+    beam.position.copy(muzzle).addScaledVector(beamDir, 0.5);
+    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), beamDir.clone().normalize());
+    scene.add(beam);
+    const targetRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.5, 0.035, 8, 32),
+      new THREE.MeshBasicMaterial({ color: 0xef4444 }),
+    );
+    targetRing.position.set(2.2, 1.25, -3.5);
+    targetRing.rotation.y = -0.8;
+    scene.add(targetRing);
     const spark = new THREE.Sprite(new THREE.SpriteMaterial({
       map: makeGlowTexture(), color: 0xffcc44, transparent: true, opacity: 0.9,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
-    spark.position.set(-4.5, 1.3, -4.2);
-    spark.scale.set(2.8, 2.8, 1);
+    spark.position.set(2.2, 1.3, -3.5);
+    spark.scale.set(2.2, 2.2, 1);
     scene.add(spark);
-    // Enemy down: a Meridian crewman flat on the road ahead of the hero.
+    // Three standing Meridian gunmen across the road, dark red jackets,
+    // rifles raised at the hero, red diamond markers overhead — the game
+    // marks hostiles in red, so the threat reads at a glance. Built from
+    // the articulated pedestrian (shoes, hands, aim pose) in uniform.
+    function buildGunman(x, z, rotY, seed) {
+      const gunman = buildPedestrian(makeRng(seed), { shirt: 0x7f1d1d, pants: 0x111827, uniform: true });
+      poseAim(gunman);
+      const rifle = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.08, 0.08),
+        new THREE.MeshStandardMaterial({ color: 0x374151, metalness: 0.7, roughness: 0.4 }),
+      );
+      rifle.position.set(0.5, 1.2, 0.1);
+      gunman.add(rifle);
+      const marker = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.16),
+        new THREE.MeshBasicMaterial({ color: 0xef4444 }),
+      );
+      marker.position.set(0, 2.15, 0);
+      gunman.add(marker);
+      gunman.position.set(x, 0, z);
+      gunman.rotation.y = rotY;
+      gunman.traverse((child) => { if (child.isMesh) child.castShadow = true; });
+      return gunman;
+    }
+    for (const [gx, gz, gs] of [[2.2, -3.5, 11], [3.4, -5.5, 23], [1.6, -7.0, 37]]) {
+      scene.add(buildGunman(gx, gz, Math.PI + 0.5, gs));
+    }
+    // Enemy down: a Meridian crewman flat on the road between the hero
+    // and the gunmen, spread-eagled and diagonal, with a red marker ring
+    // on the asphalt around him and his dropped rifle beside him — the
+    // result of the fight, readable instead of a blob.
     const downed = buildPedestrian(makeRng(7));
-    downed.position.set(-0.2, 0.25, -5.2);
+    downed.position.set(0.6, 0.25, -4.6);
     downed.rotation.set(Math.PI / 2, 0, 0.9); // lying face-down, diagonal across the road
     downed.scale.setScalar(1.05);
     downed.traverse((child) => { if (child.isMesh) child.castShadow = true; });
     scene.add(downed);
+    const downRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.95, 0.045, 8, 32),
+      new THREE.MeshBasicMaterial({ color: 0xef4444 }),
+    );
+    downRing.rotation.x = Math.PI / 2;
+    downRing.position.set(0.6, 0.06, -4.6);
+    scene.add(downRing);
+    const droppedGun = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.08, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x374151, metalness: 0.7, roughness: 0.4 }),
+    );
+    droppedGun.position.set(1.5, 0.08, -4.1);
+    droppedGun.rotation.y = 0.7;
+    scene.add(droppedGun);
+    // Burning car behind the gunmen: a torched sedan with fire sprites,
+    // smoke and a warm light. Every top combat shot has one.
+    const burning = buildTrafficCar(0x1f2937);
+    burning.position.set(4.2, 0, -7.5);
+    burning.rotation.y = Math.PI + 0.3;
+    burning.traverse((child) => { if (child.isMesh) child.castShadow = true; });
+    scene.add(burning);
+    for (const [color, sy, scale] of [[0xff7a1a, 1.6, 3.6], [0xffdd55, 1.9, 2.4], [0xffffff, 1.5, 1.3]]) {
+      const flame = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: makeGlowTexture(), color, transparent: true, opacity: 0.95,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+      flame.position.set(4.2, sy, -7.5);
+      flame.scale.set(scale, scale, 1);
+      scene.add(flame);
+    }
+    for (const [sy, scale] of [[3.6, 6], [5.2, 8]]) {
+      const smoke = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: makeGlowTexture(), color: 0x1f2937, transparent: true, opacity: 0.6, depthWrite: false,
+      }));
+      smoke.position.set(4.2, sy, -7.5);
+      smoke.scale.set(scale, scale * 0.7, 1);
+      scene.add(smoke);
+    }
+    const fireLight = new THREE.PointLight(0xff8a3c, 36, 14, 2);
+    fireLight.position.set(4.2, 2, -7.5);
+    scene.add(fireLight);
+    // Night-market stalls on the west sidewalk: striped awnings, warm
+    // lights — the dusk market the tip line names ("duck by a stall").
+    // They sit just left of the view axis so they read in the frame.
+    for (const [stallX, stallZ] of [[-2.5, -6], [-1.5, -12]]) {
+      const stall = new THREE.Group();
+      const counter = new THREE.Mesh(
+        new THREE.BoxGeometry(1.8, 1.0, 0.8),
+        new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.9 }),
+      );
+      counter.position.y = 0.5;
+      stall.add(counter);
+      const awning = new THREE.Mesh(
+        new THREE.BoxGeometry(2.2, 0.08, 1.4),
+        new THREE.MeshStandardMaterial({ map: makeAwningTexture(0xef4444, 0xf8fafc), roughness: 0.8 }),
+      );
+      awning.position.y = 2.3;
+      awning.rotation.z = 0.08;
+      stall.add(awning);
+      for (const px of [-1.0, 1.0]) {
+        const pole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.04, 0.04, 2.3, 6),
+          new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.7 }),
+        );
+        pole.position.set(px, 1.15, 0);
+        stall.add(pole);
+      }
+      // Goods on the counter: fruit crates and stacked produce, so the
+      // stall reads as a market stall, not an empty table.
+      const fruitColors = [0xf97316, 0xef4444, 0xfacc15, 0x22c55e];
+      for (let fi = 0; fi < 4; fi++) {
+        const crate = new THREE.Mesh(
+          new THREE.BoxGeometry(0.34, 0.16, 0.3),
+          new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.9 }),
+        );
+        crate.position.set(-0.6 + fi * 0.4, 1.08, 0);
+        stall.add(crate);
+        for (let p = 0; p < 3; p++) {
+          const fruit = new THREE.Mesh(
+            new THREE.SphereGeometry(0.06, 8, 6),
+            new THREE.MeshStandardMaterial({ color: fruitColors[(fi + p) % 4], roughness: 0.6 }),
+          );
+          fruit.position.set(-0.68 + fi * 0.4 + p * 0.09, 1.2, (p - 1) * 0.08);
+          stall.add(fruit);
+        }
+      }
+      const stallGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: makeGlowTexture(), color: 0xffb066, transparent: true, opacity: 0.8,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+      stallGlow.position.set(0, 1.9, 0);
+      stallGlow.scale.set(2.4, 2.4, 1);
+      stall.add(stallGlow);
+      stall.position.set(stallX, 0, stallZ);
+      stall.rotation.y = Math.PI / 2;
+      scene.add(stall);
+    }
+    const stallLight = new THREE.PointLight(0xffb066, 20, 12, 2);
+    stallLight.position.set(-8, 2.5, -9);
+    scene.add(stallLight);
     // A cool blue rim light behind the hero, so his silhouette separates
-    // from the dark street instead of melting into it (round 10's hero
-    // read as a black cutout — the only light was the muzzle flash in
-    // front of him).
+    // from the street instead of melting into it (round 10's hero read
+    // as a black cutout — the only light was the muzzle flash in front
+    // of him).
     const rimLight = new THREE.PointLight(0x7dd3fc, 14, 12, 2);
-    rimLight.position.set(-2.8, 3.2, 0.6);
+    rimLight.position.set(-3.4, 3.2, 1.4);
     scene.add(rimLight);
-    // The KILO 600 bike, parked in the open road right of the hero in
-    // bright yellow so it reads at night (dark green vanished against
-    // the asphalt; at (1.2,-2.2) it hid behind the cruiser, at (3.4,-0.2)
-    // it fell outside the frame — (0.3,-3.5) sits in the clear right
-    // foreground, angled toward the camera).
+    // The KILO 600 bike, parked in the open right foreground in bright
+    // yellow, angled toward the camera — the hero's ride, clearly visible
+    // instead of hidden behind the hero and the cruiser as in round 11.
     const bike = buildBike(0xeab308, false);
-    bike.position.set(0.3, 0, -3.5);
-    bike.rotation.y = -0.9;
+    bike.position.set(2.4, 0, -0.8);
+    bike.rotation.y = -0.6;
     bike.traverse((child) => { if (child.isMesh) child.castShadow = true; });
     scene.add(bike);
-    // The hero's car waits behind him, door open to the night.
+    // Neon spill on the west sidewalk: a magenta point light + two glow
+    // sprites by the stalls, so the shootout reads as a neon-lit night
+    // market (Karimbu's night thumbnail) instead of plain dusk.
+    const neonLight = new THREE.PointLight(0xec4899, 22, 13, 2);
+    neonLight.position.set(-8, 3.2, -6);
+    scene.add(neonLight);
+    for (const [nx, nz, color] of [[-8.2, -4, 0xec4899], [-8.2, -10, 0x22d3ee]]) {
+      const neon = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: makeGlowTexture(), color, transparent: true, opacity: 0.6,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+      neon.position.set(nx, 3.4, nz);
+      neon.scale.set(4, 4, 1);
+      scene.add(neon);
+    }
+    // The hero's car waits behind him, driver's door open to the night.
     playerCar.position.set(2.5, 0, 2.5);
     playerCar.rotation.y = Math.PI + 0.5;
+    const doorHinge = new THREE.Group();
+    doorHinge.position.set(0.8, 0.62, 0.92);
+    const openDoor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.55, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0xe8112d, metalness: 0.55, roughness: 0.3, emissive: 0x2a0505 }),
+    );
+    openDoor.position.set(-0.45, 0, 0.05);
+    doorHinge.add(openDoor);
+    doorHinge.rotation.y = 0.85;
+    playerCar.add(doorHinge);
   }
 
   // --- Camera for the shot ---
@@ -459,9 +677,16 @@ export function buildWorld(scene, seed, shotId) {
       updatePedestrian(person, time);
     }
     // Wheels spin on the player car for a sense of speed in the stills.
+    // Primitive car: the wheels are the Group children. Kenney car: the
+    // whole model is one Group child (spinning it would roll the car!),
+    // so it is skipped here and its wheels spin by name instead — their
+    // axle is the local X axis.
     for (const child of playerCar.children) {
-      if (child.type === 'Group') child.rotation.z -= dt * 12;
+      if (child.type === 'Group' && !child.userData.kenneyModel) child.rotation.z -= dt * 12;
     }
+    playerCar.traverse((child) => {
+      if (child.name.startsWith('wheel')) child.rotation.x -= dt * 12;
+    });
     return { dt, time };
   }
 

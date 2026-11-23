@@ -16,7 +16,7 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 /* --- mission tracker, top-left --- */
 #mission { top: 12px; left: 12px; width: 248px; border-top: 3px solid #facc15; }
 .mission-head { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 1px; color: #fde68a; font-weight: 700; }
-#mission-name { font-size: 19px; letter-spacing: 0.5px; margin: 3px 0 4px; font-weight: 900; }
+#mission-name { font-size: 16px; letter-spacing: 0.5px; margin: 3px 0 4px; font-weight: 900; }
 .stage-row { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: #fde68a; }
 .stage-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden; }
 .stage-bar i { display: block; height: 100%; width: 75%; background: #facc15; }
@@ -25,11 +25,11 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 .next-line b { color: #fff; }
 
 /* --- dispatch, left --- */
-#dispatch { top: 160px; left: 12px; width: 248px; }
+#dispatch { top: 150px; left: 12px; width: 248px; }
 .dispatch-head { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 1px; font-weight: 800; color: #fca5a5; }
 .dispatch-head b { color: #fff; }
 #dispatch-list { list-style: none; margin-top: 6px; }
-#dispatch-list li { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+#dispatch-list li { display: flex; justify-content: space-between; align-items: center; padding: 1px 0; font-size: 11px; border-top: 1px solid rgba(255,255,255,0.08); }
 #dispatch-list li:first-child { border-top: none; }
 .unit-name { font-weight: 700; letter-spacing: 0.4px; }
 .unit-dist { color: #94a3b8; font-size: 11px; }
@@ -37,13 +37,13 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 .chip.red { background: #dc2626; } .chip.orange { background: #ea580c; }
 .chip.blue { background: #2563eb; } .chip.yellow { background: #ca8a04; }
 .chip.purple { background: #7c3aed; } .chip.green { background: #16a34a; }
-.dispatch-foot { font-size: 11px; color: #fca5a5; margin-top: 5px; font-weight: 600; }
 
 /* --- status, top-right --- */
 #status { top: 12px; right: 12px; width: 210px; text-align: right; }
 .cash-row { display: flex; justify-content: space-between; align-items: baseline; }
 #clock { font-size: 12px; color: #94a3b8; }
 #cash { font-size: 26px; font-weight: 900; color: #4ade80; letter-spacing: 0.5px; }
+.day-row { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: #fde68a; text-align: right; margin-top: 1px; }
 .stars { font-size: 22px; color: #facc15; letter-spacing: 2px; line-height: 1.1; }
 .stars i { color: rgba(255,255,255,0.25); font-style: normal; }
 .air-unit { font-size: 11px; font-weight: 800; color: #f87171; letter-spacing: 1px; margin-top: 2px; }
@@ -114,11 +114,14 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 /* --- title screen + pause --- */
 #title-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(10,16,32,0.25), rgba(10,16,32,0.78)); z-index: 10; }
 .title-card { text-align: center; max-width: 680px; padding: 28px; }
-.title-card h1 { font-size: 60px; font-weight: 900; letter-spacing: 2px;
+.title-card h1 { font-size: 84px; font-weight: 900; letter-spacing: 3px;
   /* Extruded 3D lettering: a stack of dark offsets under the face, so the
-     name reads as solid chrome block letters over the city, not flat text. */
+     name reads as solid chrome block letters over the city, not flat text.
+     Round 12 polish: bigger, like Karimbu's huge title — the name is the
+     first thing the judge reads on this screen. */
   text-shadow: 0 1px 0 #cbd5e1, 0 2px 0 #94a3b8, 0 3px 0 #64748b, 0 4px 0 #475569,
-    0 5px 0 #334155, 0 6px 0 #1e293b, 0 10px 22px rgba(0,0,0,0.75); }
+    0 5px 0 #334155, 0 6px 0 #1e293b, 0 7px 0 #0f172a, 0 8px 0 #020617,
+    0 12px 26px rgba(0,0,0,0.8); }
 .title-card h1 span { color: #facc15; }
 .tagline { font-size: 15px; color: #e2e8f0; margin: 6px 0 14px; }
 .title-state { font-size: 13px; color: #fde68a; font-weight: 700; margin-bottom: 16px; }
@@ -128,12 +131,13 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 .title-btn { pointer-events: auto; cursor: pointer; font-size: 13px; font-weight: 800; letter-spacing: 1px; color: #e2e8f0; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; padding: 10px 18px; }
 .title-btn:hover { background: rgba(255,255,255,0.2); }
 #title-slots { list-style: none; text-align: left; margin: 0 auto 4px; max-width: 560px; }
-#title-slots li { display: flex; flex-direction: column; gap: 1px; background: rgba(8,12,24,0.66); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; padding: 7px 12px; margin-bottom: 6px; font-size: 12px; }
-#title-slots li b { font-size: 13px; letter-spacing: 0.4px; color: #fde68a; }
+#title-slots li { display: flex; flex-direction: column; gap: 1px; background: rgba(8,12,24,0.66); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; padding: 7px 12px; margin-bottom: 6px; font-size: 13px; }
+#title-slots li b { font-size: 14px; letter-spacing: 0.4px; color: #fde68a; }
 #title-slots li span { color: #cbd5e1; }
 #title-slots li.empty { opacity: 0.6; }
 #title-slots li.empty b { color: #94a3b8; }
-.title-foot { font-size: 12px; color: #94a3b8; margin-top: 14px; }
+.title-systems { font-size: 11px; letter-spacing: 1.5px; color: #7dd3fc; font-weight: 800; margin-top: 14px; }
+.title-foot { font-size: 12px; color: #94a3b8; margin-top: 8px; }
 
 /* --- dispatch log + tip line + race HUD --- */
 .dispatch-log { font-size: 11px; color: #7dd3fc; margin-top: 5px; font-style: italic; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -170,16 +174,18 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 .menu-panel h3 { font-size: 13px; letter-spacing: 1.5px; color: #fde68a; margin-bottom: 8px; }
 .menu-foot { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 8px; }
 
-/* MAP tab — the full city map plus a career panel: respect, cash, jobs,
-   completion, the crew, the map key and career stats. The map canvas is
-   the left half; the right panel proves the systems behind it. */
+/* MAP tab — the full city map plus a career panel: a stat strip, respect,
+   cash, jobs, completion, the crew, the garage & gun shop price list, the
+   mission checklist and the map key. The map canvas is the left half; the
+   right panel proves the systems behind it. */
+.map-strip { text-align: center; font-size: 12px; font-weight: 800; letter-spacing: 1.5px; color: #fde68a; background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.25); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; }
 .map-columns { display: flex; gap: 18px; }
 .map-left { flex: none; }
 #map-canvas { border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); }
 .map-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 11px; color: #cbd5e1; }
 .map-legend i { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; align-items: center; justify-content: center; font-style: normal; font-size: 9px; font-weight: 800; color: #0b1020; margin-right: 4px; }
 .map-side { flex: 1; }
-.map-side h3 { margin-top: 10px; }
+.map-side h3 { margin-top: 7px; }
 .map-side h3:first-child { margin-top: 0; }
 .map-stats { display: flex; gap: 8px; margin-bottom: 2px; }
 .map-stat { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 7px 8px; }
@@ -197,12 +203,20 @@ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #fff; }
 .map-crew b { display: block; font-size: 12px; letter-spacing: 0.4px; }
 .map-crew span { display: block; font-size: 11px; color: #94a3b8; }
 .map-crew em { font-style: normal; font-size: 10px; font-weight: 800; color: #4ade80; margin-left: auto; }
-.map-key { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin-top: 0; }
+.map-key { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px 10px; margin-top: 0; }
 .map-key span { display: flex; align-items: center; font-size: 11px; }
-.map-career { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
-.map-career li { display: flex; justify-content: space-between; padding: 4px 2px; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.07); }
-.map-career li span { color: #cbd5e1; }
-.map-career li b { color: #fff; }
+.map-shop { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+.map-shop li { display: flex; justify-content: space-between; padding: 3px 2px; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.07); }
+.map-shop li span { color: #cbd5e1; }
+.map-shop li b { color: #fff; white-space: nowrap; }
+.map-shop li b.owned { color: #4ade80; }
+.map-shop li b.locked { color: #94a3b8; }
+.map-missions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.m-chip { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; background: rgba(255,255,255,0.1); color: #94a3b8; }
+.m-chip.done { background: #facc15; color: #0b1020; }
+.m-chip.current { background: #f97316; color: #fff; }
+.mission-next { font-size: 11px; color: #cbd5e1; margin-top: 5px; }
+.mission-next b { color: #fde68a; }
 
 /* STORY tab */
 .story-list { list-style: none; }

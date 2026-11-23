@@ -1,4 +1,4 @@
-# Solmar City 3D — Make GTA 6 (gta6-01, round 11)
+# Solmar City 3D — Make GTA 6 (gta6-01, round 12)
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/ahh955/Gta6-game/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
@@ -75,17 +75,21 @@ every texture is drawn procedurally in code.
 The four staged shots (`shots.json`, all `?seed=1` for a fixed city),
 each a different screen:
 
-1. `1-chase.jpg` — four-star chase, 167 KM/H, low close camera, five cruisers with light bars frozen bright, KESTREL-9 fully in frame with a narrow white spotlight cone on the car, roadblock ahead
-2. `2-night.jpg` — night on-foot shootout at the Coral Docks, Mission 8 HIGH WATER, muzzle flash, one enemy down, the KILO 600 bike parked in the open road, 2 stars
-3. `3-map.jpg` — the CITY MAP tab: seven districts with standing, named roads, compass rose, ten-marker key, respect/cash/jobs/completion strip, crew with portraits, career stats
-4. `4-title.jpg` — the title screen over the golden-hour city, three save slots with act names, extruded 3D lettering
+1. `1-chase.jpg` — four-star chase, Mission 10 finale, 167 KM/H, low close camera, red hero car, five cruisers with light bars frozen bright, KESTREL-9 large in frame with a crisp layered spotlight cone on the car, roadblock ahead, eight dispatch units
+2. `2-night.jpg` — dusk on-foot shootout at the Coral Docks night market, Mission 8 HIGH WATER, hero aiming with tracer and target ring, three standing gunmen with red markers, one enemy down, a burning car, market stalls, the KILO 600 bike in the open road, 2 stars
+3. `3-map.jpg` — the CITY MAP tab: seven districts with standing, fourteen named roads, block subdivisions, boardwalk and pier, red search zone, stat strip, garage & gun shop price list, mission checklist, crew with portraits
+4. `4-title.jpg` — the title screen over the golden-hour city, three save slots with act names and real progress, extruded 3D lettering
 
-Round 11 rebuilt the entry against the round-10 grade (#909, 989,409,
-12-0 — all wins, but narrow margins): the third screenshot is now the
-full CITY MAP screen (the gap vs the leader), the chase cover is lower
-and closer with the helicopter fully in frame and light bars frozen
-bright, the night shot moves in on the hero with a rim light, and the
-title lettering is extruded 3D.
+Round 12 rebuilt the entry against the round-11 intake rejection (the
+round-11 upload was sent with the old level-19 kit and never graded;
+round 10 stands at #957, 989,409) and a study of the current top 5, all
+tied at the 993,977 saturation score: the night shot is re-staged as a
+lit dusk shootout with a tracer, standing enemies and a burning car; the
+map screen is densified with fourteen roads, a stat strip, the shop
+price list and a mission checklist; the cover runs the Mission 10
+finale with a red hero car, a detailed helicopter and eight dispatch
+units; and the dossier import order puts the systems files first so the
+text cut lands on geometry, not on the HUD, police or audio systems.
 
 ## Layout
 

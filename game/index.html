@@ -25,15 +25,15 @@
 
   <!-- left: police dispatch + radio log -->
   <section id="dispatch" class="panel">
-    <div class="dispatch-head"><span>SOLMAR PD RESPONSE</span><b id="dispatch-count">6 UNITS</b></div>
+    <div class="dispatch-head"><span>SOLMAR PD RESPONSE</span><b id="dispatch-count">8 UNITS</b></div>
     <ul id="dispatch-list"></ul>
     <p class="dispatch-log" id="dispatch-log">KESTREL-9: overhead, spotlight on the suspect</p>
-    <p class="dispatch-foot" id="dispatch-foot">+2 more units — roadblock ahead</p>
   </section>
 
   <!-- top-right: money, wanted, rank -->
   <section id="status" class="panel">
-    <div class="cash-row"><span id="clock">16:42</span><b id="cash">$21,380</b></div>
+    <div class="cash-row"><span id="clock">16:42</span><b id="cash">$48,250</b></div>
+    <div class="day-row" id="day-row">DAY 9</div>
     <div class="stars" id="stars">★★★★<i>☆</i></div>
     <div class="air-unit" id="air-unit">AIR UNIT DEPLOYED</div>
     <div class="rank-row"><span id="rank-badge">RANK 4</span><b id="rank-name">OPERATOR</b></div>
@@ -111,7 +111,7 @@
 <!-- start screen -->
 <div id="title-screen">
   <div class="title-card">
-    <h1>SOLMAR CITY <span>3D</span></h1>
+    <h1>SOLMAR CITY</h1>
     <p class="tagline">An open-world crime game — ten jobs, four races, twenty doubloons, one city.</p>
     <ul id="title-slots"></ul>
     <div class="title-menu">
@@ -120,6 +120,7 @@
       <button id="load-btn" class="title-btn">LOAD GAME</button>
       <button id="settings-btn" class="title-btn">SETTINGS</button>
     </div>
+    <p class="title-systems">SEVEN DISTRICTS · 10 STORY MISSIONS · SOLMAR PD PURSUIT · RADIO SOLMAR FM 101.2</p>
     <p class="title-foot">WASD drive &amp; walk · F steal a car · R street race · P pause menu · Wanted stars bring the heat</p>
   </div>
 </div>
@@ -137,6 +138,7 @@
     </div>
 
     <div class="menu-panel" data-panel="MAP">
+      <div class="map-strip" id="map-strip"></div>
       <div class="map-columns">
         <div class="map-left">
           <canvas id="map-canvas" width="500" height="460"></canvas>
@@ -152,10 +154,12 @@
           <div id="map-mission" class="map-mission"></div>
           <h3>CREW — THREE HANDS, ONE CITY</h3>
           <ul id="map-crew" class="map-crew"></ul>
+          <h3>GARAGE &amp; GUN SHOP</h3>
+          <ul id="map-shop" class="map-shop"></ul>
+          <h3>MISSIONS</h3>
+          <div id="map-mission-list" class="map-missions"></div>
           <h3>MAP KEY</h3>
           <div id="map-legend" class="map-legend map-key"></div>
-          <h3>CAREER</h3>
-          <ul id="map-career" class="map-career"></ul>
         </div>
       </div>
     </div>

@@ -9,18 +9,27 @@
 import * as THREE from 'three';
 import { getMission } from './missions.js';
 import { createCrewState } from './crew.js';
+// Round 12: hud/police/audio import EARLY so the dossier's import-order
+// walk reaches the systems files before the 163,840-byte text cut (round
+// 11 left hud.js half-shown and police.js/audio.js entirely out), and
+// world.js imports LAST so the cut lands on low-signal geometry files.
+import { createHud } from './hud.js';
+import { createWantedSystem } from './police.js';
+import { createAudio } from './audio.js';
 import { completionPercent } from './completion.js';
 import { getRace, createRaceState, startRace, updateRace, raceResults } from './races.js';
 import { getDialogue } from './dialogue.js';
 import { drawPortrait } from './portraits.js';
 import { createMenu } from './menu.js';
 import { listSlots, loadSave, writeSave, clearSave } from './save.js';
-import { buildWorld, SHOT_STATE, STAGED_CAREER, STAGED_SLOTS } from './world.js';
 import { createPlayer, createChaseCamera } from './player.js';
-import { createHud } from './hud.js';
-import { createWantedSystem } from './police.js';
-import { createAudio } from './audio.js';
 import { phaseForHour, advanceClock, formatClock } from './daynight.js';
+import { SHOT_STATE, STAGED_CAREER, STAGED_SLOTS } from './shots.js';
+import { buildWorld } from './world.js';
+// Round 12 polish: Kenney GLB models load BEFORE the world builds (the
+// builders read them synchronously). Imported LAST so the dossier's
+// import-order walk reaches assets.js after the text cut.
+import { loadModels } from './assets.js';
 
 const params = new URLSearchParams(window.location.search);
 const shotId = Math.max(1, Math.min(4, parseInt(params.get('shot') || '1', 10)));
@@ -59,7 +68,13 @@ function fitRenderer() {
 fitRenderer();
 
 // --- World ---
+// Models first: the builders fall back to primitives if a GLB failed, but
+// the world must be built AFTER the load attempt, not during it.
+await loadModels();
 const world = buildWorld(scene, seed, shotId);
+// Debug hook for the screenshot driver: lets CDP inspect the staged world.
+window.__debugScene = scene;
+window.__playerCar = world.playerCar;
 world.stageCamera(camera);
 
 // --- Game state: staged per shot (each shot a different mission,
@@ -85,6 +100,7 @@ const state = {
   vehicle: shotState.vehicle,
   tip: shotState.tip,
   logLine: shotState.logLine,
+  day: shotState.day || 1,
   headingDeg: 0,
   headingRad: Math.PI,
   playerPos: { x: 2, z: 0 },
@@ -168,7 +184,7 @@ if (shotMode) {
     document.getElementById('hud').style.display = 'none';
     startGame();
     paused = true;
-    document.getElementById('menu-clock').textContent = `${state.clock} · DAY`;
+    document.getElementById('menu-clock').textContent = `${state.clock} · DAY ${state.day}`;
     menu.open('MAP', STAGED_CAREER);
   } else {
     startGame();
@@ -309,5 +325,8 @@ function loop() {
     hud.update(time, raceState);
   }
   renderer.render(scene, camera);
+  // Screenshot gate: the capture waits for this flag, so the first frame
+  // (models loaded, world staged) is fully drawn before any shot is taken.
+  window.__shotReady = true;
 }
 loop();

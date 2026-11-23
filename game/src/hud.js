@@ -12,6 +12,10 @@ import { drawPortrait } from './portraits.js';
 
 const $ = (id) => document.getElementById(id);
 
+// Ammo strings for the on-foot speedometer slot (same counts as the
+// weapons panel) — on foot there is no car to dent.
+const AMMO = { FISTS: 'MELEE', '.38': '60 RDS', SMG: '30/60', '12G': '18 SHELLS', 'AR-9': '120 RDS' };
+
 function formatCash(amount) {
   return '$' + amount.toLocaleString('en-US');
 }
@@ -54,9 +58,6 @@ export function createHud(state) {
     $('dispatch-list').innerHTML = rows;
     $('dispatch-count').textContent = `${dispatchLines(time).length} UNITS`;
     $('dispatch-log').textContent = state.logLine || dispatchLog(time);
-    $('dispatch-foot').textContent = state.roadblock
-      ? '+2 more units — roadblock ahead'
-      : 'Roadblock cleared — units regrouping';
   }
 
   function updateLocation() {
@@ -159,6 +160,7 @@ export function createHud(state) {
   function update(time, raceState) {
     $('cash').textContent = formatCash(state.cash);
     $('clock').textContent = state.clock;
+    $('day-row').textContent = `DAY ${state.day || 1}`;
     const { current, next, index, progress } = rankFor(state.rp);
     $('rank-name').textContent = current.name;
     $('rank-badge').textContent = `RANK ${index + 1}`;
@@ -180,8 +182,15 @@ export function createHud(state) {
     $('health-num').textContent = state.health;
     $('armour-fill').style.width = `${state.armor}%`;
     $('armour-num').textContent = state.armor;
-    $('condition-fill').style.width = `${state.condition}%`;
-    $('condition-text').textContent = `${state.condition}% DENTED`;
+    if (state.onFoot) {
+      // On foot there is no car to dent — the slot shows the held weapon
+      // and its ammo instead (round 11 showed "18% DENTED" on foot).
+      $('condition-text').textContent = `${state.weapon} · ${AMMO[state.weapon] || ''}`;
+      $('condition-fill').style.width = '100%';
+    } else {
+      $('condition-fill').style.width = `${state.condition}%`;
+      $('condition-text').textContent = `${state.condition}% DENTED`;
+    }
     const tip = $('tip-line');
     if (state.tip) {
       tip.textContent = `TIP: ${state.tip}`;

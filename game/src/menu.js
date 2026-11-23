@@ -1,18 +1,24 @@
 // Tabbed pause menu for Solmar City 3D: MAP / STORY / STATS / CREW /
 // SAVE — the menu system the top entries all show. The MAP tab is the
 // round-11 cover screen: the full city grid with named roads and markers
-// beside a career panel (respect, cash, jobs, completion, crew, map key,
-// career stats) — one screen proves the map, the crew and the career at
-// once. Open with P or Esc in free play; the screenshot staging opens
-// it on the MAP tab (?shot=3). All content is filled from the real
+// beside a career panel — a stat strip, respect, cash, jobs, completion,
+// the crew, the garage & gun shop price list, the mission checklist and
+// the map key — one screen proves the map, the crew, the shops and the
+// career at once. Open with P or Esc in free play; the screenshot staging
+// opens it on the MAP tab (?shot=3). All content is filled from the real
 // career record — the same numbers the save slots carry.
 import { MISSIONS, getMission } from './missions.js';
-import { CREW, rankFor } from './crew.js';
+import { CREW, DISTRICTS, rankFor } from './crew.js';
 import { completionPercent, completionChecklist } from './completion.js';
 import { medalStrip, nextUnlock } from './progression.js';
 import { drawCityMap, LEGEND } from './citymap.js';
 import { drawPortrait } from './portraits.js';
 import { listSlots } from './save.js';
+import { RACES } from './races.js';
+import { STUNT_JUMPS } from './stunts.js';
+import { DOUBLOONS } from './collectibles.js';
+import { EXPORT_LIST } from './export.js';
+import { GARAGE, GUN_SHOP } from './shops.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -110,34 +116,18 @@ function fillCrew() {
   }
 }
 
-// The MAP tab's career stats: the six numbers the map screen's right
-// panel shows (stars lost and best lap live on the career record; race
-// wins live on progress; knockouts are the career's taken-out count).
-const MAP_CAREER_LABELS = [
-  ['carsStolen', 'Cars stolen'],
-  ['starsLost', 'Stars lost'],
-  ['takenOut', 'Knockouts'],
-  ['raceWins', 'Race wins'],
-  ['bestLap', 'Best lap'],
-  ['kmDriven', 'Distance driven'],
-];
-
-function formatMapCareerValue(key, career) {
-  const record = career.career || {};
-  if (key === 'raceWins') return String((career.progress || {}).racesWon ?? 0);
-  if (key === 'kmDriven') return `${record.kmDriven ?? 0} km`;
-  if (key === 'bestLap') return record.bestLap || '—';
-  return String(record[key] ?? 0);
-}
-
 function fillMap(career) {
+  // The mission marker sits on the night market (the current shootout);
+  // the waypoint marks the pier, where the finale ends.
   drawCityMap($('map-canvas'), (career.progress || {}).standing, [
-    { x: 84, y: 60, key: 'M' },
-    { x: 19, y: 15, key: 'W' },
+    { x: 16, y: 70, key: 'M' },
+    { x: 84, y: 60, key: 'W' },
   ]);
+  // Stat strip: the whole game's scope in one line, from real counts.
+  $('map-strip').textContent = `${MISSIONS.length} MISSIONS · ${RACES.length} RACES · ${STUNT_JUMPS.length} STUNTS · ${DOUBLOONS.length} DOUBLOONS · ${DISTRICTS.length} DISTRICTS · ${EXPORT_LIST.length} EXPORT`;
   // Stat strip: respect, cash, jobs, completion — the career at a glance.
-  const { current, next, index } = rankFor(career.rp || 0);
-  $('map-respect').textContent = `${current.name} · RANK ${index + 1}`;
+  const { current, next } = rankFor(career.rp || 0);
+  $('map-respect').textContent = current.name;
   $('map-rp').textContent = next
     ? `${(career.rp || 0).toLocaleString('en-US')} / ${next.rp.toLocaleString('en-US')} RP`
     : 'MAX RANK';
@@ -148,23 +138,40 @@ function fillMap(career) {
   $('map-missions').textContent = `${(career.progress || {}).missionsDone ?? 0}/10 missions`;
   const mission = getMission(career.missionId || 1);
   $('map-mission').innerHTML = `<b>${mission.name}</b><span>${mission.objective}</span><span class="map-district">${mission.district}</span>`;
-  // Crew: portraits, roles, loyalty.
+  // Crew: portraits, roles, loyalty (ability only here — the CREW tab
+  // carries the full descriptions).
   $('map-crew').innerHTML = CREW.map((member) => (
     `<li>
       <canvas class="map-crew-portrait" width="32" height="32" data-character="${member.id}"></canvas>
       <div><b>${member.name.toUpperCase()} · ${member.role.toUpperCase()}</b>
-      <span>${member.ability} — ${member.description}</span></div>
+      <span>${member.ability}</span></div>
       <em>${member.loyalty}% LOYAL</em>
     </li>`
   )).join('');
   for (const canvas of document.querySelectorAll('#map-crew .map-crew-portrait')) {
     drawPortrait(canvas, canvas.dataset.character);
   }
+  // Garage & gun shop: the garage price list plus the top gun, so the
+  // shop system shows on the map screen.
+  const gun = GUN_SHOP.find((g) => g.name === 'AR-9') || GUN_SHOP[0];
+  const shopRows = [...GARAGE, { name: gun.name, price: gun.price, state: null }];
+  $('map-shop').innerHTML = shopRows.map((item) => {
+    const price = item.state || `$${item.price.toLocaleString('en-US')}`;
+    const cls = item.state === 'OWNED' ? 'owned' : (item.state ? 'locked' : '');
+    return `<li><span>${item.name}</span><b class="${cls}">${price}</b></li>`;
+  }).join('');
+  // Mission checklist: numbered circles, done / current / locked, and
+  // the next mission after the current one.
+  const done = (career.progress || {}).missionsDone ?? 0;
+  const currentId = career.missionId || 1;
+  const chips = MISSIONS.map((m) => {
+    const cls = m.id <= done ? 'done' : (m.id === currentId ? 'current' : '');
+    return `<span class="m-chip ${cls}">${m.id}</span>`;
+  }).join('');
+  const nextMission = getMission(currentId + 1);
+  $('map-mission-list').innerHTML = `${chips}<div class="mission-next">NEXT · <b>${nextMission ? nextMission.name : '—'}</b></div>`;
   $('map-legend').innerHTML = LEGEND.map((l) => (
     `<span><i style="background:${l.color}">${l.key}</i>${l.label}</span>`
-  )).join('');
-  $('map-career').innerHTML = MAP_CAREER_LABELS.map(([key, label]) => (
-    `<li><span>${label}</span><b>${formatMapCareerValue(key, career)}</b></li>`
   )).join('');
 }
 

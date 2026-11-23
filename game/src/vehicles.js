@@ -4,6 +4,7 @@
 // a metalness/roughness standard material so the sun and sky reflect in it.
 import * as THREE from 'three';
 import { makeGlowTexture, makePlateTexture, makePoliceDecalTexture } from './textures.js';
+import { getCarModel } from './assets.js';
 
 const glowTexture = makeGlowTexture();
 
@@ -73,9 +74,21 @@ function addGlowSprite(parent, x, y, z, color, scale) {
 }
 
 // The hero: a low, wide sports coupe. ~4.4 m long, 1.9 m wide.
-export function buildSportsCar(color = 0xff7a1a, plate = 'SLMR 06') {
+// Round 12: the hero paint is lower-metalness than the traffic paint
+// with a faint red emissive — the round-11 orange (metalness 0.85, no
+// environment map) reflected black on the shadow side and read brown;
+// the red has to hold on both sides of the car.
+export function buildSportsCar(color = 0xe8112d, plate = 'SLMR 06') {
+  // Round 12 polish: the Kenney sedan-sports (orange-red, spoiler, real
+  // proportions) is the hero car when the pack loaded; the primitive
+  // build below is the fallback. The plate is skipped on the Kenney car
+  // (its rear detail is baked in).
+  const kenney = getCarModel('carSports');
+  if (kenney) return kenney;
   const car = new THREE.Group();
-  const paint = paintMaterial(color);
+  const paint = new THREE.MeshStandardMaterial({
+    color, metalness: 0.55, roughness: 0.3, emissive: 0x2a0505,
+  });
 
   // Sleek lower body: low nose, rising beltline, short tail.
   const body = extrudeProfile([
@@ -94,6 +107,16 @@ export function buildSportsCar(color = 0xff7a1a, plate = 'SLMR 06') {
     [-0.5, 1.26], [0.2, 1.3], [0.35, 1.24], [-0.45, 1.2],
   ], 1.3, 0.04, paint);
   car.add(roof);
+  // Window pillars: thin body-colour strips over the glass cabin, so the
+  // windshield, side glass and rear glass read as separate windows.
+  for (const [px, tilt] of [[-0.55, 0.5], [-0.05, 0], [0.45, -0.5]]) {
+    for (const z of [0.72, -0.72]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.42, 0.04), paint);
+      pillar.position.set(px, 1.08, z);
+      pillar.rotation.z = tilt;
+      car.add(pillar);
+    }
+  }
 
   // Wheels.
   const wheelPositions = [[1.45, 0.82], [1.45, -0.82], [-1.45, 0.82], [-1.45, -0.82]];
@@ -141,6 +164,12 @@ export function buildSportsCar(color = 0xff7a1a, plate = 'SLMR 06') {
     skirt.position.set(0, 0.3, z);
     car.add(skirt);
   }
+  // Side air intakes behind the doors.
+  for (const z of [0.88, -0.88]) {
+    const intake = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.06), spoilerMat);
+    intake.position.set(-0.95, 0.62, z);
+    car.add(intake);
+  }
   for (const z of [0.35, -0.35]) {
     const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.22, 10), darkMaterial(0x555b62));
     pipe.rotation.z = Math.PI / 2;
@@ -163,6 +192,25 @@ export function buildSportsCar(color = 0xff7a1a, plate = 'SLMR 06') {
 
 // Police interceptor: white sedan, black doors, roof light bar, push bar.
 export function buildCruiser(unit = '7') {
+  // Round 12 polish: the Kenney police car (white/black, baked light bar)
+  // is the cruiser when the pack loaded — with OUR flashing lenses and
+  // halos on its roof, so the bar still strobes red/blue (the baked bar
+  // is static). The primitive build below is the fallback.
+  const kenney = getCarModel('carPolice');
+  if (kenney) {
+    const redMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff1111, emissiveIntensity: 2.5 });
+    const blueMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, emissive: 0x1144ff, emissiveIntensity: 2.5 });
+    const redLens = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.24, 0.4), redMat);
+    redLens.position.set(-0.54, 1.66, 0);
+    kenney.add(redLens);
+    const blueLens = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.24, 0.4), blueMat);
+    blueLens.position.set(0.14, 1.66, 0);
+    kenney.add(blueLens);
+    const redGlow = addGlowSprite(kenney, -0.54, 2.2, 0, 0xff1111, 3.6);
+    const blueGlow = addGlowSprite(kenney, 0.14, 2.2, 0, 0x1144ff, 3.6);
+    kenney.userData.flash = { redMat, blueMat, redGlow, blueGlow, phase: Math.random() * Math.PI * 2 };
+    return kenney;
+  }
   const car = new THREE.Group();
   const white = satinMaterial(0xf1f5f9);
   const black = satinMaterial(0x0f172a);
@@ -180,6 +228,14 @@ export function buildCruiser(unit = '7') {
   const roofPanel = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.05, 1.45), black);
   roofPanel.position.set(-0.2, 1.37, 0);
   car.add(roofPanel);
+  // Window pillars over the glass cabin.
+  for (const px of [-0.75, -0.2, 0.35]) {
+    for (const z of [0.76, -0.76]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.44, 0.04), white);
+      pillar.position.set(px, 1.12, z);
+      car.add(pillar);
+    }
+  }
   for (const z of [0.9, -0.9]) {
     const door = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.5, 0.03), black);
     door.position.set(-0.1, 0.62, z);
@@ -255,7 +311,21 @@ export function buildCruiser(unit = '7') {
 }
 
 // Simpler traffic sedan in a random colour.
+// Round 12 polish: traffic cars are Kenney models when the pack loaded —
+// the colour deterministically picks the model (yellow is always the taxi),
+// so the seeded layout stays identical run to run. The primitive build
+// below is the fallback.
+const TRAFFIC_MODELS = {
+  0xfacc15: 'carTaxi', 0x2563eb: 'carSedan', 0xdc2626: 'carHatch',
+  0xe5e7eb: 'carVan', 0x059669: 'carSuv', 0x9333ea: 'carTruck',
+  0x0ea5e9: 'carDelivery',
+};
+const TRAFFIC_FALLBACK = ['carSedan', 'carSuv', 'carHatch', 'carVan', 'carTruck', 'carDelivery'];
 export function buildTrafficCar(color) {
+  const model = TRAFFIC_MODELS[color]
+    || TRAFFIC_FALLBACK[(color >> 4) % TRAFFIC_FALLBACK.length];
+  const kenney = getCarModel(model);
+  if (kenney) return kenney;
   const car = new THREE.Group();
   const paint = paintMaterial(color);
   const body = extrudeProfile([
@@ -279,6 +349,24 @@ export function buildTrafficCar(color) {
     head.position.set(2.12, 0.56, z);
     car.add(head);
   }
+  // Taillights + side mirrors + window pillars: the traffic cars were the
+  // plainest vehicles in the frame (no rear lights at all).
+  const tailMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xef4444, emissiveIntensity: 1.2 });
+  for (const z of [0.55, -0.55]) {
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.09, 0.3), tailMat);
+    tail.position.set(-2.11, 0.58, z);
+    car.add(tail);
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.14), paint);
+    mirror.position.set(0.75, 0.95, z > 0 ? 0.92 : -0.92);
+    car.add(mirror);
+  }
+  for (const px of [-0.6, -0.1, 0.4]) {
+    for (const z of [0.73, -0.73]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.4, 0.04), paint);
+      pillar.position.set(px, 1.06, z);
+      car.add(pillar);
+    }
+  }
   return car;
 }
 
@@ -298,6 +386,13 @@ export function buildScooter(riderColor = 0xf97316) {
   const bars = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.55, 8), darkMaterial(0x555b62));
   bars.rotation.x = Math.PI / 2; bars.position.set(0.58, 1.05, 0);
   group.add(bars);
+  const scootHead = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.1, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0xfff6c9, emissive: 0xfff2a8, emissiveIntensity: 1.6 }),
+  );
+  scootHead.position.set(0.62, 0.78, 0);
+  group.add(scootHead);
+  addGlowSprite(group, 0.7, 0.78, 0, 0xfff2a8, 0.5);
   for (const x of [0.55, -0.5]) {
     const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.12, 16), darkMaterial());
     wheel.rotation.x = Math.PI / 2;
@@ -374,6 +469,24 @@ export function buildBike(color = 0x16a34a, withRider = true) {
   head.position.set(0.68, 0.62, 0);
   bike.add(head);
   addGlowSprite(bike, 0.78, 0.62, 0, 0xfff2a8, 0.7);
+  // Exhaust pipe, raked windscreen and fenders — the shapes that make it
+  // read as a sport bike, not a frame on two wheels.
+  const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.8, 10), darkMaterial(0x8a8f98));
+  exhaust.rotation.z = Math.PI / 2;
+  exhaust.position.set(-0.15, 0.32, 0.16);
+  bike.add(exhaust);
+  const screen = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.28, 0.34),
+    new THREE.MeshStandardMaterial({ color: 0x101c2c, metalness: 0.9, roughness: 0.08 }),
+  );
+  screen.position.set(0.52, 0.98, 0);
+  screen.rotation.z = 0.5;
+  bike.add(screen);
+  for (const x of [0.62, -0.62]) {
+    const fender = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.05, 0.16), paint);
+    fender.position.set(x, 0.62, 0);
+    bike.add(fender);
+  }
   if (withRider) {
     const leathers = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 });
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.19, 0.4, 4, 10), leathers);

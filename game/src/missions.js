@@ -20,6 +20,7 @@ export const MISSIONS = [
     payout: 900, contact: 'VERA',
     brief: 'The Marlin owes us. Remind them, politely or otherwise.',
     dialogue: 'Debt is a promise. Go collect on it.',
+    next: 'Hot Plates',
   },
   {
     id: 3, name: 'HOT PLATES', act: 'ACT I', chapter: 'The Crew', district: 'Strand Boulevard',
@@ -27,6 +28,7 @@ export const MISSIONS = [
     payout: 1400, contact: 'ROSA',
     brief: 'Rosa needs clean plates for the getaway fleet. You drive, she works.',
     dialogue: 'Three cars, three plates, no cops. Easy money.',
+    next: 'Low Tide',
   },
   {
     id: 4, name: 'LOW TIDE', act: 'ACT I', chapter: 'The Crew', district: 'Coral Docks',
@@ -34,6 +36,7 @@ export const MISSIONS = [
     payout: 2200, contact: 'DEZ',
     brief: 'A crate went off the pier at dawn. Fish it out before customs does.',
     dialogue: 'The sea keeps what it takes. Take it back.',
+    next: 'Neon Rain',
   },
   {
     id: 5, name: 'NEON RAIN', act: 'ACT I', chapter: 'The Crew', district: 'Casino Row',
@@ -41,6 +44,7 @@ export const MISSIONS = [
     payout: 3000, contact: 'PIP',
     brief: 'Pip moves the package; you move the trouble out of her way.',
     dialogue: 'Eyes out. The Row watches everyone tonight.',
+    next: 'Sink the Vanguard',
   },
   {
     id: 6, name: 'SINK THE VANGUARD', act: 'ACT II', chapter: "Voss's Fall", district: 'Solmar Strand',
@@ -56,6 +60,7 @@ export const MISSIONS = [
     payout: 6800, contact: 'ROSA',
     brief: 'Three copies, three floors, one alarm. Be quick or be loud.',
     dialogue: 'Paper burns. So do bridges. Light both.',
+    next: 'High Water',
   },
   {
     id: 8, name: 'HIGH WATER', act: 'ACT II', chapter: "Voss's Fall", district: 'Coral Docks',
@@ -63,6 +68,7 @@ export const MISSIONS = [
     payout: 8400, contact: 'DEZ',
     brief: 'They come for the docks at dusk. The docks are ours. Keep them.',
     dialogue: 'Hold the line. The tide is with us tonight.',
+    next: 'The Long Way Home',
   },
   {
     id: 9, name: 'THE LONG WAY HOME', act: 'ACT III', chapter: 'Reckoning', district: 'Strand Boulevard',
@@ -70,6 +76,7 @@ export const MISSIONS = [
     payout: 12000, contact: 'PIP',
     brief: 'Every unit in the city is on you. Make them regret it.',
     dialogue: 'Five stars. The whole city is watching. Give them a show.',
+    next: 'Solmar Belongs to Us',
   },
   {
     id: 10, name: 'SOLMAR BELONGS TO US', act: 'ACT III', chapter: 'Reckoning', district: 'Solmar Strand',

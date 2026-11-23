@@ -16,6 +16,9 @@ const frondMaterialDark = new THREE.MeshStandardMaterial({
   emissive: 0x14532d, emissiveIntensity: 0.35,
 });
 const coconutMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4f2a, roughness: 0.8 });
+const deadFrondMaterial = new THREE.MeshStandardMaterial({
+  color: 0x8a6b3a, roughness: 0.9, side: THREE.DoubleSide,
+});
 
 // One frond: a plane bent along its length and tapered to a point.
 function makeFrond(length, width, droop) {
@@ -78,6 +81,17 @@ export function buildPalm(height, rng) {
     frond.rotation.y = (i / 3) * Math.PI * 2;
     frond.rotation.x = -Math.PI / 2 + rng.range(1.1, 1.4);
     palm.add(frond);
+  }
+  // Dead fronds hanging below the crown — every real palm has them, and
+  // they break the perfect-green-crown read.
+  for (let i = 0; i < 3; i++) {
+    const dead = makeFrond(rng.range(1.8, 2.4), 0.5, 1.6);
+    dead.material = deadFrondMaterial;
+    dead.position.set(crownX, crownY - 0.15, 0);
+    dead.rotation.order = 'YXZ';
+    dead.rotation.y = (i / 3) * Math.PI * 2 + rng.range(-0.3, 0.3);
+    dead.rotation.x = -Math.PI / 2 + rng.range(0.05, 0.3);
+    palm.add(dead);
   }
   // Coconuts under the crown.
   for (let i = 0; i < 4; i++) {

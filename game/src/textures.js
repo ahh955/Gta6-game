@@ -148,6 +148,26 @@ export function makeGlowTexture() {
   });
 }
 
+// Beach sand: warm base with darker grains and a few pale shells, so the
+// beach reads as sand, not a beige plane.
+export function makeSandTexture() {
+  const texture = canvasTexture(256, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#ead9a8'; ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2200; i++) {
+      ctx.fillStyle = Math.random() < 0.5 ? 'rgba(120,90,40,0.16)' : 'rgba(255,250,230,0.20)';
+      ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    }
+    for (let i = 0; i < 24; i++) {
+      ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,240,220,0.8)' : 'rgba(200,160,140,0.7)';
+      ctx.beginPath();
+      ctx.arc(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+
 // Puffy cloud sprite.
 export function makeCloudTexture(rng) {
   return canvasTexture(256, 128, (ctx) => {

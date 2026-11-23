@@ -12,6 +12,12 @@ export const DISPATCH_UNITS = [
   { callsign: 'OSPREY-4', type: 'FLANKER', chip: 'FLANKING', chipClass: 'purple', distance: 14 },
   { callsign: 'BARRACUDA-6', type: 'INTERCEPTOR', chip: 'RAMMING', chipClass: 'red', distance: 15 },
   { callsign: 'KESTREL-9', type: 'AIR SUPPORT', chip: 'SPOTLIGHT', chipClass: 'yellow', distance: 32 },
+  // Round 12: eight units on the board (GOLDEN HOUR, the top cover with
+  // the biggest response, runs nine; nine rows do not fit above the
+  // minimap, eight do) — a four-star heat should read as the whole city
+  // answering, not a half-dozen cars.
+  { callsign: 'HERON-3', type: 'PURSUIT', chip: 'PURSUIT', chipClass: 'orange', distance: 41 },
+  { callsign: 'STINGRAY-8', type: 'INTERCEPTOR', chip: 'RAMMING', chipClass: 'red', distance: 22 },
 ];
 
 export const WANTED_LEVELS = [

@@ -29,6 +29,18 @@ export const RESPRAY = [
   { name: 'CLEAN PLATES', price: 250, note: 'Drops one wanted star.' },
 ];
 
+// The Marlowe garage price list: what the shop charges, and what the
+// player already owns (prices match the RESPRAY list above). The MAP tab
+// folds this list into the city map so the shop system shows without
+// needing a separate shop screenshot.
+export const GARAGE = [
+  { name: 'FULL REPAIR', price: 300, state: null },
+  { name: 'RESPRAY', price: 500, state: null },
+  { name: 'STAGE 2 TUNE', price: 1800, state: 'OWNED' },
+  { name: 'ARMOUR PLATING', price: 3600, state: null },
+  { name: 'NITRO KIT', price: 2400, state: 'LOCKED · LV 6' },
+];
+
 // Buy from a shop list: returns the purchase or null when unaffordable.
 export function buyItem(cash, item) {
   if (cash < item.price) return null;

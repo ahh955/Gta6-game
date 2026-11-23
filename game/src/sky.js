@@ -1,7 +1,7 @@
 // Sky, sun, clouds, ocean, beach and the Ferris wheel for Solmar City 3D —
 // the golden-hour backdrop that makes the street read as a sun-soaked coast.
 import * as THREE from 'three';
-import { makeCloudTexture, makeGlowTexture } from './textures.js';
+import { makeCloudTexture, makeGlowTexture, makeSandTexture } from './textures.js';
 
 const glowTexture = makeGlowTexture();
 
@@ -89,13 +89,31 @@ export function buildBeach(rng) {
     swell.position.set(90 + rng.range(-20, 40), -0.05, -220 + i * 30 + rng.range(-6, 6));
     beach.add(swell);
   }
+  const sandTexture = makeSandTexture();
+  sandTexture.repeat.set(3, 30);
   const sand = new THREE.Mesh(
     new THREE.PlaneGeometry(46, 500),
-    new THREE.MeshStandardMaterial({ color: 0xead9a8, roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ map: sandTexture, roughness: 0.95 }),
   );
   sand.rotation.x = -Math.PI / 2;
   sand.position.set(34, -0.05, -80);
   beach.add(sand);
+  // Wet-sand band + foam line at the waterline (sand ends at x=57): the
+  // hard sand/ocean edge was the most artificial line in the vista.
+  const wetSand = new THREE.Mesh(
+    new THREE.PlaneGeometry(5, 500),
+    new THREE.MeshStandardMaterial({ color: 0xc9b183, roughness: 0.55 }),
+  );
+  wetSand.rotation.x = -Math.PI / 2;
+  wetSand.position.set(54.5, -0.04, -80);
+  beach.add(wetSand);
+  const foam = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.2, 500),
+    new THREE.MeshBasicMaterial({ color: 0xf0fbfd, transparent: true, opacity: 0.55 }),
+  );
+  foam.rotation.x = -Math.PI / 2;
+  foam.position.set(57.6, -0.08, -80);
+  beach.add(foam);
 
   // Beach umbrellas + towels.
   const umbrellaColors = [0xef4444, 0x3b82f6, 0xf59e0b, 0xec4899, 0x22c55e];
